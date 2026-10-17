@@ -1073,14 +1073,16 @@ function initMap(){
   map.on('load',()=>{
     map.addSource('all-tracks',{type:'geojson',data:EMPTY});
     map.addSource('all-obs',{type:'geojson',data:EMPTY});
-    map.addSource('route',{type:'geojson',lineMetrics:true,data:EMPTY});
+    map.addSource('route',{type:'geojson',data:EMPTY});
+    map.addSource('route-done',{type:'geojson',data:EMPTY});
     map.addLayer({id:'all-tracks-casing',type:'line',source:'all-tracks',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#05080c','line-width':5,'line-opacity':.5}});
     map.addLayer({id:'all-tracks-line',type:'line',source:'all-tracks',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':['case',['boolean',['feature-state','hl'],false],'#ffd27a','#f4b13e'],'line-width':['case',['boolean',['feature-state','hl'],false],4.5,2.5],'line-opacity':.9}});
     map.addLayer({id:'all-tracks-hit',type:'line',source:'all-tracks',paint:{'line-width':18,'line-color':'#000','line-opacity':0}});
     map.addLayer({id:'obs-heat',type:'heatmap',source:'all-obs',layout:{visibility:'none'},paint:{'heatmap-weight':['interpolate',['linear'],['coalesce',['get','count'],1],1,.4,10,1],'heatmap-radius':['interpolate',['linear'],['zoom'],9,18,14,46],'heatmap-intensity':['interpolate',['linear'],['zoom'],9,.8,14,1.6],'heatmap-opacity':.75,'heatmap-color':['interpolate',['linear'],['heatmap-density'],0,'rgba(0,0,0,0)',.2,'rgba(134,207,228,.45)',.5,'rgba(241,244,247,.7)',.8,'rgba(244,177,62,.85)',1,'rgba(255,122,61,.95)']}});
     map.addLayer({id:'route-casing',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#05080c','line-width':['interpolate',['linear'],['zoom'],10,4,16,9],'line-opacity':.55}});
-    map.addLayer({id:'route-glow',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],10,8,16,18],'line-blur':8,'line-gradient':['interpolate',['linear'],['line-progress'],0,'rgba(0,0,0,0)',1,'rgba(0,0,0,0)']}});
-    map.addLayer({id:'route-line',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],10,2.5,16,5.5],'line-gradient':['interpolate',['linear'],['line-progress'],0,'#f4b13e',1,'#f4b13e']}});
+    map.addLayer({id:'route-line',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],10,2.5,16,5.5],'line-color':'rgba(235,242,248,0.5)'}});
+    map.addLayer({id:'route-glow',type:'line',source:'route-done',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],10,8,16,18],'line-blur':8,'line-color':'#f4b13e','line-opacity':.45}});
+    map.addLayer({id:'route-done',type:'line',source:'route-done',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],10,2.5,16,5.5],'line-color':['coalesce',['get','c'],'#f4b13e']}});
     map.addLayer({id:'route-hit',type:'line',source:'route',paint:{'line-width':22,'line-color':'#000','line-opacity':0}});
     map.addLayer({id:'obs-circle',type:'circle',source:'all-obs',paint:{'circle-radius':['interpolate',['linear'],['coalesce',['get','count'],1],1,5,12,12],'circle-color':['get','color'],'circle-stroke-color':'#0a0f15','circle-stroke-width':1.6,'circle-opacity':['case',['==',['get','trip_id'],''],.95,.95],'circle-pitch-alignment':'viewport'}});
     styleReady=true;
@@ -1108,24 +1110,34 @@ const RAMPS={ele:['#2f6b8f','#5aa9b8','#d9d48a','#f4b13e','#fff1d6'],grade:['#5a
 function hex(h){const n=parseInt(h.slice(1),16);return [n>>16&255,n>>8&255,n&255];}
 function hexA(h,a){const [r,g,b]=hex(h);return `rgba(${r},${g},${b},${a})`;}
 function rampColor(stops,t){t=clamp(t,0,1)*(stops.length-1);const i=Math.min(stops.length-2,Math.floor(t)),f=t-i;const a=hex(stops[i]),b=hex(stops[i+1]);return `rgb(${Math.round(lerp(a[0],b[0],f))},${Math.round(lerp(a[1],b[1],f))},${Math.round(lerp(a[2],b[2],f))})`;}
-let metricExpr=null;
+let metric=null,metricExpr=null;
 function buildMetricExpr(){
-  const T=state.T,m=state.colorMode;metricExpr=null;if(m==='progress'||!T)return;
-  const arr=m==='ele'?T.eleS:m==='grade'?T.grade:m==='speed'?T.speed:m==='hr'?T.hr:null;if(!arr)return;
+  const T=state.T,m=state.colorMode;metric=null;metricExpr=null;if(m==='progress'||!T)return;
+  const arr=m==='ele'?T.eleS:m==='grade'?T.grade:m==='speed'?T.speed:m==='hr'?(T.hrS||T.hr):null;if(!arr)return;
   let lo=Infinity,hi=-Infinity;for(const v of arr){lo=Math.min(lo,v);hi=Math.max(hi,v);}if(m==='grade'){lo=-20;hi=25;}
-  const e=['interpolate',['linear'],['line-progress']];let last=-1;
-  for(let k=0;k<=80;k++){const d=k/80*T.total,pf=planarFrac(T,d);if(pf<=last+1e-6)continue;last=pf;e.push(pf,rampColor(RAMPS[m],(sampleAt(T,arr,d)-lo)/((hi-lo)||1)));}
-  if(e.length>=7)metricExpr=e;
+  metric={arr,lo,hi,ramp:RAMPS[m]};metricExpr=true;
 }
 const TODO_COLOR='rgba(235,242,248,0.5)';
+let lastPaintAt=0;
+function doneGeoJSON(T,p){
+  const d=clamp(p,0,1)*T.total;if(d<=0)return EMPTY;
+  const [a,b,f]=locate(T,d),end=posAt(T,d),coords=[];
+  for(let i=0;i<=a;i++)coords.push([T.pts[i].lon,T.pts[i].lat]);
+  if(f>0&&b>a)coords.push([end.lon,end.lat]);
+  if(coords.length<2)return EMPTY;
+  if(!metric)return {type:'Feature',properties:{},geometry:{type:'LineString',coordinates:coords}};
+  const feats=[],step=Math.max(1,Math.ceil(T.n/220));
+  for(let i=0;i<coords.length-1;i+=step){const j=Math.min(coords.length-1,i+step),mid=T.cum[Math.min(T.n-1,Math.floor((i+j)/2))];
+    feats.push({type:'Feature',properties:{c:rampColor(metric.ramp,(sampleAt(T,metric.arr,mid)-metric.lo)/((metric.hi-metric.lo)||1))},geometry:{type:'LineString',coordinates:coords.slice(i,j+1)}});}
+  return {type:'FeatureCollection',features:feats};
+}
 function paintRoute(p,force){
-  if(!styleReady||!state.T||!map.getLayer('route-line'))return;
-  if(!force&&Math.abs(p-lastPaintP)<0.0004)return;lastPaintP=p;
-  const P=clamp(planarFrac(state.T,p*state.T.total),0,1),done=metricExpr||'#f4b13e';let line,glow;
-  if(P<=0.0005){line=['interpolate',['linear'],['line-progress'],0,TODO_COLOR,1,TODO_COLOR];glow=['interpolate',['linear'],['line-progress'],0,'rgba(0,0,0,0)',1,'rgba(0,0,0,0)'];}
-  else if(P>=0.9995){line=metricExpr||['interpolate',['linear'],['line-progress'],0,'#f4b13e',1,'#f4b13e'];glow=['interpolate',['linear'],['line-progress'],0,'rgba(244,177,62,0.45)',1,'rgba(244,177,62,0.45)'];}
-  else{line=metricExpr?['case',['<',['line-progress'],P],done,TODO_COLOR]:['step',['line-progress'],'#f4b13e',P,TODO_COLOR];glow=['step',['line-progress'],'rgba(244,177,62,0.45)',P,'rgba(0,0,0,0)'];}
-  map.setPaintProperty('route-line','line-gradient',line);map.setPaintProperty('route-glow','line-gradient',glow);
+  if(!styleReady||!state.T||!map.getSource('route-done'))return;
+  const now=performance.now();
+  if(!force&&Math.abs(p-lastPaintP)<0.0005)return;
+  if(!force&&now-lastPaintAt<60&&Math.abs(p-lastPaintP)<0.01)return;
+  lastPaintP=p;lastPaintAt=now;
+  map.getSource('route-done').setData(doneGeoJSON(state.T,p));
 }
 
 /* ---------- cameras ---------- */
@@ -1739,7 +1751,7 @@ function setView(v){
   if(!styleReady)return;
   const vis=(ids,on)=>ids.forEach(l=>map.setLayoutProperty(l,'visibility',on?'visible':'none'));
   vis(['all-tracks-casing','all-tracks-line','all-tracks-hit'],v==='log');
-  vis(['route-casing','route-glow','route-line','route-hit'],v==='trip'&&$('#routeToggle').checked);
+  vis(['route-casing','route-glow','route-line','route-done','route-hit'],v==='trip'&&$('#routeToggle').checked);
   map.setLayoutProperty('obs-heat','visibility',v==='log'&&state.heat?'visible':'none');
   map.setPaintProperty('obs-circle','circle-opacity',v==='log'?.95:.5);
   map.setPaintProperty('obs-circle','circle-stroke-opacity',v==='log'?1:.5);
@@ -1750,7 +1762,7 @@ function showLog(){
   setPlaying(false);closePoi();stopAdd();
   state.trip=null;state.T=null;state.pois=[];
   poiMarkers.forEach(m=>m.remove());poiMarkers=[];if(posMarker)posMarker.remove();
-  if(styleReady)map.getSource('route').setData(EMPTY);
+  if(styleReady){map.getSource('route').setData(EMPTY);map.getSource('route-done').setData(EMPTY);}
   setView('log');renderLog();updateTrackSource();fitLog();
 }
 async function openTrip(id){
@@ -2463,7 +2475,7 @@ function bindUI(){
   $$('#lights button').forEach(b=>b.addEventListener('click',()=>applyLight(b.dataset.light)));
   $('#exag').addEventListener('input',e=>{state.exag=+e.target.value;$('#exagVal').textContent=nf1.format(state.exag)+'×';if(state.terrainOn)map.setTerrain({source:'dem',exaggeration:state.exag});});
   $('#hsToggle').addEventListener('change',e=>map.setLayoutProperty('hillshade','visibility',e.target.checked?'visible':'none'));
-  $('#routeToggle').addEventListener('change',e=>{for(const l of ['route-casing','route-glow','route-line'])map.setLayoutProperty(l,'visibility',e.target.checked?'visible':'none');});
+  $('#routeToggle').addEventListener('change',e=>{for(const l of ['route-casing','route-glow','route-line','route-done'])map.setLayoutProperty(l,'visibility',e.target.checked?'visible':'none');});
   $('#poiToggle').addEventListener('change',renderPoiMarkers);
   $('#otherObsToggle').addEventListener('change',updateObsSource);
   $('#colorMode').addEventListener('change',e=>{state.colorMode=e.target.value;buildMetricExpr();if(state.colorMode!=='progress'&&!metricExpr)toast('Turen har ikke data for denne fargen.');paintRoute(state.progress,true);});
