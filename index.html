@@ -1074,6 +1074,8 @@ function initMap(){
     map.addSource('all-obs',{type:'geojson',data:EMPTY});
     map.addSource('route',{type:'geojson',data:EMPTY});
     map.addSource('route-done',{type:'geojson',data:EMPTY});
+    map.addSource('route-head',{type:'geojson',data:EMPTY});
+    hookRoutePaint();
     map.addLayer({id:'all-tracks-casing',type:'line',source:'all-tracks',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#05080c','line-width':5,'line-opacity':.5}});
     map.addLayer({id:'all-tracks-line',type:'line',source:'all-tracks',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':['case',['boolean',['feature-state','hl'],false],'#ffd27a','#f4b13e'],'line-width':['case',['boolean',['feature-state','hl'],false],4.5,2.5],'line-opacity':.9}});
     map.addLayer({id:'all-tracks-hit',type:'line',source:'all-tracks',paint:{'line-width':18,'line-color':'#000','line-opacity':0}});
@@ -1081,7 +1083,9 @@ function initMap(){
     map.addLayer({id:'route-casing',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#05080c','line-width':['interpolate',['linear'],['zoom'],10,4,16,9],'line-opacity':.55}});
     map.addLayer({id:'route-line',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],10,2.5,16,5.5],'line-color':'rgba(235,242,248,0.5)'}});
     map.addLayer({id:'route-glow',type:'line',source:'route-done',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],10,8,16,18],'line-blur':8,'line-color':'#f4b13e','line-opacity':.45}});
+    map.addLayer({id:'route-glow-h',type:'line',source:'route-head',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],10,8,16,18],'line-blur':8,'line-color':'#f4b13e','line-opacity':.45}});
     map.addLayer({id:'route-done',type:'line',source:'route-done',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],10,2.5,16,5.5],'line-color':['coalesce',['get','c'],'#f4b13e']}});
+    map.addLayer({id:'route-done-h',type:'line',source:'route-head',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],10,2.5,16,5.5],'line-color':['coalesce',['get','c'],'#f4b13e']}});
     map.addLayer({id:'route-hit',type:'line',source:'route',paint:{'line-width':22,'line-color':'#000','line-opacity':0}});
     map.addLayer({id:'obs-circle',type:'circle',source:'all-obs',paint:{'circle-radius':['interpolate',['linear'],['coalesce',['get','count'],1],1,5,12,12],'circle-color':['get','color'],'circle-stroke-color':'#0a0f15','circle-stroke-width':1.6,'circle-opacity':['case',['==',['get','trip_id'],''],.95,.95],'circle-pitch-alignment':'viewport'}});
     styleReady=true;
@@ -1117,26 +1121,56 @@ function buildMetricExpr(){
   metric={arr,lo,hi,ramp:RAMPS[m]};metricExpr=true;
 }
 const TODO_COLOR='rgba(235,242,248,0.5)';
-let lastPaintAt=0;
-function doneGeoJSON(T,p){
+/* Gått rute tegnes i to kilder: 'route-done' (lang, oppdateres sjelden) og 'route-head' (kort hale fra
+   der route-done er ferdig tegnet og fram til markøren, oppdateres hver frame). Én stor kilde som
+   oppdateres hver frame rekker aldri å bli ferdig tegnet under avspilling og henger etter markøren. */
+const RP={B:-1,shown:0,sent:0,done:0,S:50,lastP:0,headAt:0,confB:-1,confAt:0};
+function resetRoutePaint(){RP.B=-1;RP.shown=0;RP.confB=-1;RP.lastP=0;RP.headAt=0;RP.S=state.T?Math.max(30,Math.ceil(state.T.n/60)):50;}
+function hookRoutePaint(){
+  const src=map.getSource('route-done');
+  const fin=ok=>{RP.done=Math.min(RP.done+1,RP.sent);if(ok&&RP.done>=RP.sent){RP.confB=RP.B;RP.confAt=performance.now();}checkRouteShown();};
+  src.on('data',e=>{if(e.dataType==='source'&&e.sourceDataType==='content')fin(true);});
+  src.on('dataabort',e=>{if(!e.tile)fin(false);});
+  map.on('sourcedata',e=>{if(e.sourceId==='route-done')checkRouteShown();});
+}
+function checkRouteShown(){
+  /* halen flyttes først når hoveddelen faktisk er tegnet (eller etter 0,3 s om kameraet laster nye fliser) */
+  if(RP.confB<0||RP.confB===RP.shown||RP.done<RP.sent)return;
+  if(!map.isSourceLoaded('route-done')&&performance.now()-RP.confAt<300)return;
+  RP.shown=RP.confB;if(state.T&&!state.exporting)setHead(RP.lastP);
+}
+/* linje fra punkt i0 til posisjon p (andel av turen), fargelagt i faste segmenter så hale og hoveddel matcher */
+function doneGeoJSON(T,p,i0=0,exact=true){
   const d=clamp(p,0,1)*T.total;if(d<=0)return EMPTY;
-  const [a,b,f]=locate(T,d),end=posAt(T,d),coords=[];
-  for(let i=0;i<=a;i++)coords.push([T.pts[i].lon,T.pts[i].lat]);
-  if(f>0&&b>a)coords.push([end.lon,end.lat]);
+  const [a,b,f]=locate(T,d),end=posAt(T,d);i0=Math.max(0,Math.min(i0,a));
+  const coords=[];for(let i=i0;i<=a;i++)coords.push([T.pts[i].lon,T.pts[i].lat]);
+  if(exact&&f>0&&b>a)coords.push([end.lon,end.lat]);
   if(coords.length<2)return EMPTY;
   if(!metric)return {type:'Feature',properties:{},geometry:{type:'LineString',coordinates:coords}};
-  const feats=[],step=Math.max(1,Math.ceil(T.n/220));
-  for(let i=0;i<coords.length-1;i+=step){const j=Math.min(coords.length-1,i+step),mid=T.cum[Math.min(T.n-1,Math.floor((i+j)/2))];
-    feats.push({type:'Feature',properties:{c:rampColor(metric.ramp,(sampleAt(T,metric.arr,mid)-metric.lo)/((metric.hi-metric.lo)||1))},geometry:{type:'LineString',coordinates:coords.slice(i,j+1)}});}
+  const feats=[],step=Math.max(1,Math.ceil(T.n/220)),last=i0+coords.length-1;
+  for(let g=Math.floor(i0/step)*step;g<last;g+=step){
+    const s0=Math.max(g,i0),s1=Math.min(g+step,last);if(s1<=s0)continue;
+    const mid=T.cum[Math.min(T.n-1,g+Math.floor(step/2))];
+    feats.push({type:'Feature',properties:{c:rampColor(metric.ramp,(sampleAt(T,metric.arr,mid)-metric.lo)/((metric.hi-metric.lo)||1))},geometry:{type:'LineString',coordinates:coords.slice(s0-i0,s1-i0+1)}});}
   return {type:'FeatureCollection',features:feats};
+}
+function sendBulk(T,a,p,exact){
+  RP.B=a;RP.sent++;
+  map.getSource('route-done').setData(doneGeoJSON(T,p,0,exact));
+}
+function setHead(p){
+  const T=state.T;RP.headAt=performance.now();
+  const d=clamp(p,0,1)*T.total,a=d>0?locate(T,d)[0]:0;
+  map.getSource('route-head').setData(RP.shown>a||d<=0?EMPTY:doneGeoJSON(T,p,RP.shown));
 }
 function paintRoute(p,force){
   if(!styleReady||!state.T||!map.getSource('route-done'))return;
-  const now=performance.now();
-  if(!force&&Math.abs(p-lastPaintP)<0.0005)return;
-  if(!force&&now-lastPaintAt<60&&Math.abs(p-lastPaintP)<0.01)return;
-  lastPaintP=p;lastPaintAt=now;
-  map.getSource('route-done').setData(doneGeoJSON(state.T,p));
+  const T=state.T,d=clamp(p,0,1)*T.total,a=d>0?locate(T,d)[0]:0;
+  if(!force&&Math.abs(p-RP.lastP)<0.00005)return;
+  RP.lastP=p;lastPaintP=p;
+  if(force){sendBulk(T,a,p,true);map.getSource('route-head').setData(EMPTY);RP.shown=Math.min(RP.shown,a);return;}
+  if(RP.B<0||a<RP.B||a-RP.B>=RP.S)sendBulk(T,a,p,false);
+  checkRouteShown();if(performance.now()-RP.headAt>=24)setHead(p);
 }
 
 /* ---------- cameras ---------- */
@@ -1750,7 +1784,7 @@ function setView(v){
   if(!styleReady)return;
   const vis=(ids,on)=>ids.forEach(l=>map.setLayoutProperty(l,'visibility',on?'visible':'none'));
   vis(['all-tracks-casing','all-tracks-line','all-tracks-hit'],v==='log');
-  vis(['route-casing','route-glow','route-line','route-done','route-hit'],v==='trip'&&$('#routeToggle').checked);
+  vis(['route-casing','route-glow','route-glow-h','route-line','route-done','route-done-h','route-hit'],v==='trip'&&$('#routeToggle').checked);
   map.setLayoutProperty('obs-heat','visibility',v==='log'&&state.heat?'visible':'none');
   map.setPaintProperty('obs-circle','circle-opacity',v==='log'?.95:.5);
   map.setPaintProperty('obs-circle','circle-stroke-opacity',v==='log'?1:.5);
@@ -1761,7 +1795,7 @@ function showLog(){
   setPlaying(false);closePoi();stopAdd();
   state.trip=null;state.T=null;state.pois=[];
   poiMarkers.forEach(m=>m.remove());poiMarkers=[];if(posMarker)posMarker.remove();
-  if(styleReady){map.getSource('route').setData(EMPTY);map.getSource('route-done').setData(EMPTY);}
+  if(styleReady){map.getSource('route').setData(EMPTY);RP.sent++;map.getSource('route-done').setData(EMPTY);map.getSource('route-head').setData(EMPTY);}
   setView('log');renderLog();updateTrackSource();fitLog();
 }
 async function openTrip(id){
@@ -1772,7 +1806,7 @@ async function openTrip(id){
   state.trip=trip;state.T=T;state.pois=pois;state.eleFromTerrain=false;
   setView('trip');
   $('#crumbTrip').textContent=trip.name;$('#eTitle').value=trip.name;
-  map.getSource('route').setData(routeGeoJSON(T));buildMetricExpr();lastPaintP=-1;state.progress=1;paintRoute(1,true);
+  map.getSource('route').setData(routeGeoJSON(T));buildMetricExpr();lastPaintP=-1;resetRoutePaint();state.progress=1;paintRoute(1,true);
   if(!posMarker){const el=document.createElement('div');el.className='pos-mk';posMarker=new maplibregl.Marker({element:el,opacityWhenCovered:'0.9'});}
   const p0=posAt(T,T.total);posMarker.setLngLat([p0.lon,p0.lat]).addTo(map);
   await sleep(40);
@@ -2474,7 +2508,7 @@ function bindUI(){
   $$('#lights button').forEach(b=>b.addEventListener('click',()=>applyLight(b.dataset.light)));
   $('#exag').addEventListener('input',e=>{state.exag=+e.target.value;$('#exagVal').textContent=nf1.format(state.exag)+'×';if(state.terrainOn)map.setTerrain({source:'dem',exaggeration:state.exag});});
   $('#hsToggle').addEventListener('change',e=>map.setLayoutProperty('hillshade','visibility',e.target.checked?'visible':'none'));
-  $('#routeToggle').addEventListener('change',e=>{for(const l of ['route-casing','route-glow','route-line','route-done'])map.setLayoutProperty(l,'visibility',e.target.checked?'visible':'none');});
+  $('#routeToggle').addEventListener('change',e=>{for(const l of ['route-casing','route-glow','route-glow-h','route-line','route-done','route-done-h'])map.setLayoutProperty(l,'visibility',e.target.checked?'visible':'none');});
   $('#poiToggle').addEventListener('change',renderPoiMarkers);
   $('#otherObsToggle').addEventListener('change',updateObsSource);
   $('#colorMode').addEventListener('change',e=>{state.colorMode=e.target.value;buildMetricExpr();if(state.colorMode!=='progress'&&!metricExpr)toast('Turen har ikke data for denne fargen.');paintRoute(state.progress,true);});
