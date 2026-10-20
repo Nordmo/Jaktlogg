@@ -34,8 +34,8 @@ Alt i loopen måles mot en spec du har godkjent. Uten den har reviewer og tester
 - **Plan mode først:** Claude lager spec og plan i plan mode. Du godkjenner. Først da starter loopen.
 - **Testene for akseptansekriteriene skrives før implementasjonen** og låses (se fase 4). Da kan ikke implementasjonen tilpasse testene til seg selv.
 
-* [ ] Skriv mal for `CLAUDE.md`
-* [ ] Skriv mal for `docs/specs/_template.md`
+* [x] Skriv mal for `CLAUDE.md`
+* [x] Skriv mal for `docs/specs/_template.md`
 
 ## Fase 1: Automatiske sjekker
 
@@ -220,7 +220,7 @@ ship-loop/
 
 - [ ] Velg pilot-repo
 - [x] Fase 1: `npm run check` og GitHub Actions
-- [ ] Fase 0: maler for `CLAUDE.md` og spec
+- [x] Fase 0: maler for `CLAUDE.md` og spec
 - [x] Fase 2: Stop-hook, testet med rød kode
 - [ ] Fase 3 og 4: reviewer-agent og `/ship`-skill
 - [ ] Fase 5: branch protection og auto-merge
