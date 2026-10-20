@@ -5,9 +5,13 @@ cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
 session=$(jq -r '.session_id' <<<"$input")
 counter="/tmp/claude-verify-$session"
 
-# Ingen endringer i arbeidskopien: ingenting å verifisere
-if git diff --quiet HEAD && [ -z "$(git ls-files --others --exclude-standard)" ]; then
-  exit 0
+# Commits som ikke er på main ennå (egen branch, eller main som ikke er pushet)
+base=origin/main; git rev-parse -q --verify "$base" >/dev/null || base=main
+ahead=$(git rev-list --count "$base..HEAD" 2>/dev/null || echo 0)
+
+# Ingen endringer i arbeidskopien og ingen nye commits: ingenting å verifisere
+if git diff --quiet HEAD && [ -z "$(git ls-files --others --exclude-standard)" ] && [ "$ahead" -eq 0 ]; then
+  rm -f "$counter"; exit 0
 fi
 
 if output=$(npm run check 2>&1); then

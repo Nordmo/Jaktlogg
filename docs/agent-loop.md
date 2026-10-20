@@ -219,9 +219,9 @@ ship-loop/
 **Kostnad:** hver feature kjører implementør pluss opptil tre review-runder. Opus som implementør er den største kostnaden. Treffer du bruksgrensen, bytt hovedmodellen til Sonnet først.
 
 - [ ] Velg pilot-repo
-- [ ] Fase 1: `npm run check` og GitHub Actions
+- [x] Fase 1: `npm run check` og GitHub Actions
 - [ ] Fase 0: maler for `CLAUDE.md` og spec
-- [ ] Fase 2: Stop-hook, testet med rød kode
+- [x] Fase 2: Stop-hook, testet med rød kode
 - [ ] Fase 3 og 4: reviewer-agent og `/ship`-skill
 - [ ] Fase 5: branch protection og auto-merge
 - [ ] Fase 6 og 7: Sentry og plugin-repo
