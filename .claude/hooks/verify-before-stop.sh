@@ -1,5 +1,6 @@
 #!/bin/bash
 # Stop-vakt: Claude får ikke avslutte før `npm run check` er grønn. Gir opp etter 3 forsøk og skriver ESCALATION.md.
+# Unntak: er bare docs/specs/ og tests/acceptance/ endret siden main, slipper den gjennom (testene er røde med vilje).
 input=$(cat)
 cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
 session=$(jq -r '.session_id' <<<"$input")
@@ -14,6 +15,12 @@ ahead=$(git rev-list --count "$base..HEAD" 2>/dev/null || echo 0)
 
 # Ingen endringer i arbeidskopien og ingen nye commits: ingenting å verifisere
 if git diff --quiet HEAD && [ -z "$(git ls-files --others --exclude-standard)" ] && [ "$ahead" -eq 0 ]; then
+  rm -f "$counter"; stopped
+fi
+
+# Test først: er bare spec og akseptansetester endret siden main, er røde tester meningen
+changed=$( { git diff --name-only "$(git merge-base "$base" HEAD)"; git ls-files --others --exclude-standard; } | sort -u)
+if ! grep -qvE '^(docs/specs|tests/acceptance)/' <<<"$changed"; then
   rm -f "$counter"; stopped
 fi
 
