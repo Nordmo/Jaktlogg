@@ -26,6 +26,9 @@ Stopp og si fra til Martin (uten branch og uten `ESCALATION.md`) hvis noe av det
 - `$ARGUMENTS` er en fil under `docs/specs/` som finnes.
 - Specen har `Status: godkjent`, og "Åpne spørsmål" er tom.
 - Arbeidskopien er ren (`git status --porcelain` er tom).
+- Agenttypen `reviewer` står i lista over agenter du kan kalle i denne økten. Agenter lastes når
+  Claude Code starter, og `/clear` laster dem ikke på nytt. Mangler den, er grunnen
+  «reviewer-agenten er ikke lastet i denne økten. Start Claude Code på nytt og kjør /ship igjen.»
 
 Stopper du her, skriv utfallet: `scripts/ship-utfall.sh "Jaktlogg: /ship stoppet" "<hva som mangler>" "" 4`.
 
@@ -57,9 +60,17 @@ Kjør `npm run check` til den er grønn, og commit. (Stop-vakten holder deg uans
 
 ## 4. Review (maks tre runder)
 
-Tell rundene selv, fra 1. Kall subagenten `reviewer` med:
+Tell rundene selv, fra 1. Kall subagenten `reviewer` (`subagent_type: "reviewer"`) med:
 `Spec: <sti til spec>. Base: origin/main.` Gi den ingenting annet: ikke planen din, ikke
 resonnementet ditt, ikke tidligere funn.
+
+**Bare den ekte `reviewer` teller.** Bruk aldri en nødløsning: en annen agenttype med kopierte
+instruksjoner, din egen review eller noe annet. Svarer kallet `Agent type 'reviewer' not found`,
+eller er en runde likevel gjort med en nødløsning, er reviewen ikke godkjent. Stopp for Martin:
+push branchen, åpne PR uten auto-merge med «Review: ikke godkjent, revieweren var en nødløsning»
+og årsaken øverst i beskrivelsen, skriv utfallet
+`"Jaktlogg: PR venter på deg" "<funksjon>: revieweren var en nødløsning (<årsak>)" <PR-lenke> 4`,
+og avslutt.
 
 Ruting på svaret:
 
@@ -119,7 +130,15 @@ Martins svar oppdaterer specen (det gjør Martin, eller du med Martins ja), og s
 
 ## 7. PR med auto-merge
 
-Sjekk først at porten finnes:
+Auto-merge slås på når, og bare når, begge disse er sanne:
+
+1. Siste review-runde var den ekte `reviewer`-agenten, med `pass` og ingen `high`/`medium`.
+2. `scripts/escalation-check.js` ga exit 0.
+
+Er begge sanne, skal auto-merge på. Du kan ikke la være av egen tvil: er du usikker, eskaler
+(steg 6) med årsaken. Er en av dem usann, hører du ikke hjemme i dette steget.
+
+Sjekk så at porten finnes:
 `gh api repos/{owner}/{repo} --jq .allow_auto_merge` er `true`, og
 `gh api repos/{owner}/{repo}/rules/branches/main` har en regel `required_status_checks` med `check`.
 Mangler en av dem, åpne PR uten auto-merge, skriv utfallet
