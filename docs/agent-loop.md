@@ -223,5 +223,5 @@ ship-loop/
 - [x] Fase 0: maler for `CLAUDE.md` og spec
 - [x] Fase 2: Stop-hook, testet med rød kode
 - [x] Fase 3 og 4: reviewer-agent og `/ship`-skill
-- [ ] Fase 5: branch protection og auto-merge
+- [x] Fase 5: branch protection og auto-merge
 - [ ] Fase 6 og 7: Sentry og plugin-repo
