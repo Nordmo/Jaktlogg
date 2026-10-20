@@ -75,6 +75,36 @@ test('stopper sed -i, tee, cp, mv og rm på låste filer', () => alle('ask', [
   'npx prettier --write .claude/hooks/ship-start.sh',
 ]));
 
+// macOS-sed: -i tar et eget argument (tomt '' eller ""), og skriptet kan stå bak -e, alene eller klistret på.
+const MAC_SED = f => [
+  `sed -i '' 's/a/b/' ${f}`,
+  `sed -i "" 's/a/b/' ${f}`,
+  `sed -i '' -e 's/a/b/' ${f}`,
+  `sed -i -e 's/a/b/' ${f}`,
+  `sed -i '' -e 's/^Status: utkast$/Status: godkjent/' ${f}`,
+  `sed -i '' -e 's/^Status: utkast$/Status: godkjent/' -e 's/^Godkjent av: –$/Godkjent av: Martin/' ${f}`,
+  `sed -i '' -es/a/b/ ${f}`,
+  `sed -i '' -e's/a/b/' ${f}`,
+  `sed -i -es/a/b/ ${f}`,
+  `sed -i'' -e 's/a/b/' ${f}`,
+  `sed -i '' -n -e 's/a/b/p' ${f}`,
+  `sed -i '' -ne 's/a/b/p' ${f}`,
+  `sed -Ei '' -e 's/a/b/' ${f}`,
+  `sed -i '' -E -e 's/a/b/' ${f}`,
+  `sed -e 's/a/b/' -i '' ${f}`,
+  `sed -i '' -f /tmp/x.sed ${f}`,
+  `sed -i '' --expression='s/a/b/' ${f}`,
+  `sed -i '' -e 's/a/b/' index.html ${f}`,
+  `sed -i '' -e 's/a/b/' -- ${f}`,
+  `/usr/bin/sed -i '' -e 's/a/b/' ${f}`,
+  `git status --porcelain && sed -i '' -e 's/a/b/' ${f} && sed -n 3,4p ${f}`,
+];
+
+test('stopper alle macOS-varianter av sed -i på låste filer', () => alle('ask',
+  ['docs/specs/fugl.md', 'tests/acceptance/fugl.spec.js', '.claude/settings.json', `${root}/docs/specs/fugl.md`].flatMap(MAC_SED)));
+
+test('slipper gjennom de samme sed -i-variantene på ulåste filer', () => alle('fri', MAC_SED('index.html')));
+
 test('stopper kode som åpner en låst fil for skriving', () => alle('ask', [
   `python3 -c "open('.claude/settings.json', 'w').write('{}')"`,
   `node -e "require('fs').writeFileSync('docs/specs/fugl.md', '')"`,

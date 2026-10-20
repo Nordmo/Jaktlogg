@@ -87,8 +87,8 @@ function check(cmds, cwd, mentioned) {
     else if (/^(cp|ln|install|rsync|ditto|scp)$/.test(name)) { const t = opt('-t', '--target-directory'); if (t.length) t.forEach(a => write(a)); else if (files.length) write(files.at(-1)); }
     else if (/^(tee|touch|mkdir|truncate|chmod|chown|chgrp|chflags|xattr|setfacl|patch)$/.test(name)) files.forEach(a => write(a));
     else if (name === 'dd') args.filter(a => a.startsWith('of=')).forEach(a => write(a.slice(3)));
-    else if (/^g?sed$/.test(name)) {   // uten -e/-f er første argument skriptet, ikke en fil
-      if (args.some(a => /^-[^-]*i/.test(a) || a.startsWith('--in-place'))) { const sc = opt('-e', '-f', '--expression', '--file'); files.filter(a => !sc.includes(a)).slice(sc.length ? 0 : 1).forEach(a => write(a)); }
+    else if (/^g?sed$/.test(name)) {   // uten -e/-f er første argument skriptet, ikke en fil. -es/a/b/ og -ne er også -e
+      if (args.some(a => /^-[^-]*i/.test(a) || a.startsWith('--in-place'))) { const sc = opt('-e', '-f', '--expression', '--file'), own = sc.length || args.some(a => /^-[^-]*[ef]/.test(a)); files.filter(a => !sc.includes(a)).slice(own ? 0 : 1).forEach(a => write(a)); }
     }
     else if (/^(tar|bsdtar|unzip)$/.test(name)) opt('-C', '--directory', '-d').forEach(a => write(a));
     else if (/^(curl|wget)$/.test(name)) opt('-o', '--output', '-O', '--output-document').forEach(a => write(a));
