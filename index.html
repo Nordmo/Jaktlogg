@@ -1695,6 +1695,7 @@ async function loadLog(fit=true){
   if(fit&&state.view==='log')fitLog();
 }
 function tripStart(t){return t.started_at?Date.parse(t.started_at):null;}
+function tripCountText(n,total,all=false){return all?`${total} tur${total===1?'':'er'}`:`${n} av ${total} tur${total===1?'':'er'}`;}
 function filteredTrips(){return state.trips.filter(t=>state.season==='all'||(tripStart(t)&&seasonOf(tripStart(t))===state.season));}
 async function renderLog(){
   const seasons=[...new Set(state.trips.map(tripStart).filter(Boolean).map(seasonOf))].sort().reverse();
@@ -1720,6 +1721,7 @@ async function renderLog(){
     </div>
     <label class="toggle"><span>Varmekart over rypeobservasjoner</span><input type="checkbox" id="heatToggle" ${state.heat?'checked':''}></label>
     ${banner}
+    ${state.trips.length?`<div class="eyebrow" id="tripCount">${tripCountText(trips.length,state.trips.length,state.season==='all')}</div>`:''}
     <div class="trips">${trips.length?trips.map(t=>tripCard(t,byTrip[t.id]||[])).join(''):`<div class="empty-state"><b>Ingen turer ennå</b><div>Last opp GPX-fila fra jakta, så havner sporet, været og rypene her.</div><button class="btn primary" id="emptyNew">Last opp GPX eller TCX</button></div>`}</div>`;
   $$('#seasons button').forEach(b=>b.addEventListener('click',()=>{state.season=b.dataset.s;renderLog();updateTrackSource();updateObsSource();fitLog();}));
   renderAnalysis();
