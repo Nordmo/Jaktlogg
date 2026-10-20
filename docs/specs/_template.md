@@ -33,14 +33,19 @@ Testene skrives før implementasjonen og låses.
 
 ## Berører
 
-<!-- Kryss av det som gjelder. Avkrysset betyr at endringen alltid går til Martin, selv om alt er grønt. -->
+<!--
+Kryss av det som gjelder. Avkrysset betyr at endringen alltid går til Martin, selv om alt er grønt.
+/ship sjekker også den faktiske diffen (scripts/escalation-check.js). Treffer diffen et punkt som
+ikke er krysset av, eskaleres det som "ikke varslet i spec". Slettede eller skippede tester og
+endringer i låste filer eskaleres alltid og har ingen avkrysning.
+-->
 
 - [ ] Databaseskjema, ny tabell eller RLS-policy (krever `supabase-oppdatering-N.sql` og README)
 - [ ] Innlogging eller tilgang
 - [ ] Ny avhengighet (CDN-bibliotek eller npm-pakke)
 - [ ] Nøkler eller `CONFIG`
 - [ ] Kamera, terreng eller rutetegning (se Fallgruver i CLAUDE.md)
-- [ ] `.github/workflows/` eller `.claude/`
+- [ ] Reglene agenten dømmes etter: `.github/`, `.claude/`, `scripts/`, config-filer, `package.json`, `CLAUDE.md`
 
 ## Åpne spørsmål
 

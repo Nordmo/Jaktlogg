@@ -10,7 +10,9 @@ Høydespor jaktlogg: privat jaktlogg i 3D (GPX/TCX-spor, rypetreff, vær, dronev
 
 `npm run check` kjører alle sjekker i `scripts/check.sh` (prosjektregler, ESLint, gitleaks, npm audit, Playwright) og stopper ved første feil. CI (`.github/workflows/check.yml`) kjører samme kommando. Enkeltvis: `npm run lint`, `npx playwright test -g "<navn>"`. Krever `brew install gitleaks` lokalt.
 
-Hooks i `.claude/settings.json`: `lint-file.sh` linter hver fil etter Edit/Write, og `verify-before-stop.sh` hindrer avslutning til `npm run check` er grønn. Etter tre røde forsøk skrives `ESCALATION.md` (ikke i git).
+Hooks i `.claude/settings.json`: `lint-file.sh` linter hver fil etter Edit/Write, `verify-before-stop.sh` hindrer avslutning til `npm run check` er grønn, og `protect-paths.sh` spør Martin før endringer i `docs/specs/`, `tests/acceptance/` og `.claude/`. Etter tre røde forsøk skrives `ESCALATION.md` (ikke i git).
+
+`/ship docs/specs/<funksjon>.md` låser akseptansetestene, implementerer, kaller `reviewer` (Sonnet, maks tre runder), kjører `scripts/escalation-check.js` mot diffen og åpner PR. Den merger aldri selv; `gh pr merge` er sperret til fase 5.
 
 ## Arkitektur
 
