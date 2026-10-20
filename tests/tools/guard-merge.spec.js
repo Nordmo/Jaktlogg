@@ -23,12 +23,18 @@ test('sperrer merge uten --auto og med --admin', () => alle('deny', [
   'echo $(gh pr merge 4)',
   "bash <<'EOF'\ngh pr merge 4 --squash\nEOF",
   'eval "gh pr merge 4"',
+  'timeout 900 gh pr merge 4 --squash',
+  'scripts/vent.sh 900 gh pr merge 4 --squash',
+  './scripts/vent.sh 60 gh pr merge --admin 4',
+  'nice -n 5 gh pr merge 4',
 ]));
 
 test('slipper gjennom merge med --auto', () => alle('fri', [
   'gh pr merge 4 --auto --squash --delete-branch',
   'gh pr merge --auto --squash 4',
   'gh pr checks 4 --watch --fail-fast && gh pr view 4 --json state',
+  'scripts/vent.sh 450 gh pr checks 4 --watch --fail-fast',
+  'gh pr merge 4 --auto --squash --delete-branch && scripts/vent.sh 450 gh pr checks 4 --watch --fail-fast',
 ]));
 
 test('sperrer endring av GitHub-innstillinger', () => alle('deny', [

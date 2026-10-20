@@ -73,6 +73,8 @@ test('stopper sed -i, tee, cp, mv og rm på låste filer', () => alle('ask', [
   'git checkout -- .',
   'find .claude -name "*.sh" -delete',
   'npx prettier --write .claude/hooks/ship-start.sh',
+  'scripts/vent.sh 60 rm .claude/hooks/lint-file.sh',
+  'timeout 60 sed -i "" -e s/a/b/ docs/specs/fugl.md',
 ]));
 
 // macOS-sed: -i tar et eget argument (tomt '' eller ""), og skriptet kan stå bak -e, alene eller klistret på.

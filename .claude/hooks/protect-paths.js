@@ -69,7 +69,7 @@ function check(cmds, cwd, mentioned) {
       const h = w[0];
       if (PREFIX.has(h) || /^[A-Za-z_]\w*=/.test(h)) w.shift();
       else if (h === 'env') { w.shift(); while (w.length && (w[0].startsWith('-') || /^\w+=/.test(w[0]))) w.shift(); }
-      else if (h === 'nice' || h === 'timeout') { w.shift(); while (w.length && /^(-|[\d.]+[smhd]?$)/.test(w[0])) w.shift(); }
+      else if (h === 'nice' || h === 'timeout' || basename(h) === 'vent.sh') { w.shift(); while (w.length && /^(-|[\d.]+[smhd]?$)/.test(w[0])) w.shift(); }
       else if (h === 'xargs') { w.shift(); piped = true; while (w.length && w[0].startsWith('-')) w.splice(0, /^-[IinPLdEsa]$/.test(w[0]) ? 2 : 1); }
       else break;
     }

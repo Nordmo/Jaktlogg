@@ -157,13 +157,15 @@ Push branchen og åpne en vanlig PR mot `main`:
 - Beskrivelse: lenke til specen, hvilke AK som er dekket av hvilke tester, antall review-runder,
   alle `low`-funn som en liste, og "Eskaleringssjekk: ingen treff".
 
-Så: `gh pr merge <nr> --auto --squash --delete-branch`, og vent på CI med
-`gh pr checks <nr> --watch --fail-fast` (maks 15 minutter).
+Så: `gh pr merge <nr> --auto --squash --delete-branch`, og vent på CI i forgrunnen med
+`scripts/vent.sh 450 gh pr checks <nr> --watch --fail-fast` (Bash-timeout `600000`). Exit 124 betyr at
+tiden gikk ut: kjør samme kommando én gang til, til sammen 15 minutter. Bruk aldri `timeout`: den finnes
+ikke på macOS. Kjør ikke ventingen i bakgrunnen.
 
 Er PR-en merget, vent på publiseringen: finn kjøringen på `main` for merge-commiten
 (`gh pr view <nr> --json mergeCommit -q .mergeCommit.oid`, så
 `gh run list --branch main --event push --json databaseId,headSha`) og kjør
-`gh run watch <id> --exit-status` (maks 15 minutter). `deploy`-jobben publiserer bare når `check` er grønn.
+`scripts/vent.sh 450 gh run watch <id> --exit-status` på samme måte (maks to ganger, 15 minutter). `deploy`-jobben publiserer bare når `check` er grønn.
 
 | Utfall | Utfall (`scripts/ship-utfall.sh`) |
 | --- | --- |
