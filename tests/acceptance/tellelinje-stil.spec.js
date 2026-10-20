@@ -38,8 +38,13 @@ test('AK4: 26 px fra tellelinjen til første turkort', async ({ page }) => {
   expect(Math.abs(await gapBelow(page) - 26)).toBeLessThanOrEqual(1);
 });
 
+// Elementet rett før tellelinjen er det synlige elementet som ligger nærmest over den, uansett rekkefølge i markupen.
 test('AK5: 18 px over tellelinjen, som før', async ({ page }) => {
-  const gap = await page.evaluate(() => { const c = document.querySelector('#tripCount'); return c.getBoundingClientRect().top - c.previousElementSibling.getBoundingClientRect().bottom; });
+  const gap = await page.evaluate(() => {
+    const c = document.querySelector('#tripCount'), top = c.getBoundingClientRect().top;
+    const above = [...c.parentElement.children].map(e => e.getBoundingClientRect()).filter(r => r.height > 0 && r.bottom <= top + 1);
+    return top - Math.max(...above.map(r => r.bottom));
+  });
   expect(Math.abs(gap - 18)).toBeLessThanOrEqual(1);
 });
 

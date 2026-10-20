@@ -53,6 +53,9 @@ test('AK5: ingen tellelinje når loggen er tom', async ({ page }) => {
   await expect(count(page)).toBeVisible();
   await page.locator('#delSamples').click();
   await page.locator('#delSamples').click();
+  // Knappen forsvinner først når turene er slettet og loggen er tegnet på nytt. Det kan ta over 5 sekunder i CI,
+  // så vent på det (begrenset bare av testens egen tidsgrense) før sjekkene under.
+  await page.locator('#delSamples').waitFor({ state: 'detached', timeout: 0 });
   await expect(page.getByText('Ingen turer ennå')).toBeVisible();
   await expect(count(page)).toHaveCount(0);
 });
