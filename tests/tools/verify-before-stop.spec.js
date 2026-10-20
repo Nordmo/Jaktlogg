@@ -10,9 +10,9 @@ let repo, n = 0;
 const git = (...a) => execFileSync('git', a, { cwd: repo, stdio: 'pipe' });
 const put = (p, s = 'x') => { mkdirSync(dirname(join(repo, p)), { recursive: true }); writeFileSync(join(repo, p), s); };
 const commit = (...paths) => { for (const p of paths) put(p, `${p} ${n++}`); git('add', '-A'); git('commit', '-qm', 'c'); };
-const stop = (session) => {
+const stop = (session, transcript) => {
   const id = session ?? `vakt-test-${process.pid}-${n++}`;
-  const r = spawnSync('bash', [hook], { input: JSON.stringify({ session_id: id }), env: { ...process.env, CLAUDE_PROJECT_DIR: repo }, encoding: 'utf8' });
+  const r = spawnSync('bash', [hook], { input: JSON.stringify({ session_id: id, transcript_path: transcript }), env: { ...process.env, CLAUDE_PROJECT_DIR: repo }, encoding: 'utf8' });
   if (!session) rmSync(`/tmp/claude-verify-${id}`, { force: true });
   return r.status;
 };
@@ -108,6 +108,55 @@ test('varsler «venter» når /ship stopper uten utfall, og bare for økten som 
   expect(stop('okt-1')).toBe(0);
   expect(varsler()).toEqual(['Jaktlogg: /ship fugl venter|Claude har stoppet før /ship var ferdig. Se i terminalen.||4']);
   expect(existsSync(marker())).toBe(true);
+});
+
+// Transkript som Claude Code skriver det: revieweren og Bash startet i bakgrunnen, og varselet når de er ferdige.
+const transcript = () => join(repo, '.git/transkript.jsonl');
+const logg = (...e) => writeFileSync(transcript(), e.map(x => JSON.stringify(x)).join('\n') + '\n', { flag: 'a' });
+const result = (id, text) => ({ type: 'user', message: { role: 'user', content: [{ tool_use_id: id, type: 'tool_result', content: text }] } });
+const reviewer = id => logg({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name: 'Agent', input: { subagent_type: 'reviewer' } }] } },
+  result(id, [{ type: 'text', text: 'Async agent launched successfully.\nagentId: a245 (internal ID)\nThe agent is working in the background.' }]));
+const bakgrunnBash = id => logg(result(id, 'Command running in background with ID: b1. Output is being written to: /tmp/b1.output.'));
+const ferdig = (id, status = 'completed') => logg({ type: 'queue-operation', operation: 'enqueue',
+  content: `<task-notification>\n<task-id>a245</task-id>\n<tool-use-id>${id}</tool-use-id>\n<status>${status}</status>\n<summary>Agent "Review runde 1" finished</summary>\n</task-notification>` });
+
+test('varsler ikke «venter» mens revieweren fra /ship kjører i bakgrunnen', () => {
+  shipStart('/ship docs/specs/fugl.md', 'okt-1');
+  reviewer('toolu_rev1');
+  expect(stop('okt-1', transcript())).toBe(0);
+  expect(varsler()).toEqual([]);
+  expect(existsSync(marker())).toBe(true);
+  ferdig('toolu_rev1');
+  expect(stop('okt-1', transcript())).toBe(0);
+  expect(varsler()).toEqual(['Jaktlogg: /ship fugl venter|Claude har stoppet før /ship var ferdig. Se i terminalen.||4']);
+});
+
+test('varsler ikke «venter» mens en bakgrunns-Bash kjører, men gjør det når en jobb fortsatt står som running', () => {
+  shipStart('/ship docs/specs/fugl.md', 'okt-1');
+  bakgrunnBash('toolu_bash1');
+  ferdig('toolu_bash1', 'running');
+  expect(stop('okt-1', transcript())).toBe(0);
+  expect(varsler()).toEqual([]);
+  ferdig('toolu_bash1', 'failed');
+  expect(stop('okt-1', transcript())).toBe(0);
+  expect(varsler()).toHaveLength(1);
+});
+
+test('utfallet varsles selv om en bakgrunnsjobb kjører', () => {
+  check(0);
+  shipStart('/ship docs/specs/fugl.md', 'okt-1');
+  reviewer('toolu_rev1');
+  utfall('Jaktlogg: shippet og publisert', 'fugl: melding', 'https://github.com/x/pull/9', '3');
+  expect(stop('okt-1', transcript())).toBe(0);
+  expect(varsler()).toEqual(['Jaktlogg: shippet og publisert|fugl: melding|https://github.com/x/pull/9|3']);
+});
+
+test('varsler «venter» som før når transkriptet mangler eller ikke kan leses', () => {
+  shipStart('/ship docs/specs/fugl.md', 'okt-1');
+  expect(stop('okt-1', join(repo, 'finnes-ikke.jsonl'))).toBe(0);
+  writeFileSync(transcript(), 'ikke json\n');
+  expect(stop('okt-1', transcript())).toBe(0);
+  expect(varsler()).toHaveLength(2);
 });
 
 test('utfallet varsles selv om ship-start ikke kjørte', () => {

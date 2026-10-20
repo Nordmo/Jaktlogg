@@ -17,6 +17,9 @@ stopped() {
     scripts/ntfy.sh "$(field title)" "$(field message)" "$(field click)" "$(field priority)"
     rm -f "$marker" "$result"
   else
+    # Venter Claude bare på en bakgrunnsjobb (revieweren, CI-venting), fortsetter den når jobben er ferdig: ikke varsle.
+    jobs=$(node "$(dirname "$0")/bakgrunn.js" "$(jq -r '.transcript_path // empty' <<<"$input")" 2>/dev/null)
+    [ "${jobs:-0}" -gt 0 ] 2>/dev/null && exit 0
     scripts/ntfy.sh "Jaktlogg: /ship $(head -n 1 "$marker") venter" "Claude har stoppet før /ship var ferdig. Se i terminalen." "" 4
   fi
   exit 0

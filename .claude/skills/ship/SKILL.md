@@ -16,7 +16,9 @@ alt annet). Da merger GitHub først når CI er grønn. Endre aldri GitHub-innsti
 ikke du: `ship-start.sh` merker økten når `/ship` starter, og når du stopper, sender vakten utfallet.
 Rett før du avslutter, hver gang, skriver du utfallet med
 `scripts/ship-utfall.sh "<tittel>" "<melding>" [lenke] [prioritet]`. Glemmer du det, eller stopper du
-for å spørre om noe, får Martin «/ship venter». Tre røde forsøk varsler vakten selv. Venter du på
+for å spørre om noe, får Martin «/ship venter». Revieweren kjører i bakgrunnen, og du må avslutte turen for
+å få svaret. Det er greit: så lenge en bakgrunnsjobb du har startet kjører, sender vakten ikke «venter»
+(`bakgrunn.js` leser transkriptet). Skriv ikke utfall mens du venter. Tre røde forsøk varsler vakten selv. Venter du på
 Martins ja til en tillatelse (for eksempel fra låsen), varsler `ship-venter.sh` ham.
 Kall ikke `scripts/ntfy.sh` direkte, og skriv aldri ntfy-emnet noe sted.
 
