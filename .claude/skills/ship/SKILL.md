@@ -12,8 +12,12 @@ ditt eget skjønn om noe er "nytt" eller "løsbart". Svar og commit-meldinger p�
 **Du merger aldri direkte.** Bare `gh pr merge --auto --squash` er lov (`guard-merge.sh` sperrer
 alt annet). Da merger GitHub først når CI er grønn. Endre aldri GitHub-innstillinger.
 
-**Varsling.** Martin får push med `scripts/ntfy.sh "<tittel>" "<melding>" [lenke] [prioritet]` hver
-gang `/ship` er ferdig eller stopper. Skriv aldri ntfy-emnet noe sted.
+**Varsling.** Martin får alltid push når `/ship` slutter, uansett grunn. Det er Stop-vakten som sender,
+ikke du: `ship-start.sh` merker økten når `/ship` starter, og når du stopper, sender vakten utfallet.
+Rett før du avslutter, hver gang, skriver du utfallet med
+`scripts/ship-utfall.sh "<tittel>" "<melding>" [lenke] [prioritet]`. Glemmer du det, eller stopper du
+for å spørre om noe, får Martin «/ship venter». Tre røde forsøk varsler vakten selv.
+Kall ikke `scripts/ntfy.sh` direkte, og skriv aldri ntfy-emnet noe sted.
 
 ## 0. Forutsetninger
 
@@ -23,15 +27,15 @@ Stopp og si fra til Martin (uten branch og uten `ESCALATION.md`) hvis noe av det
 - Specen har `Status: godkjent`, og "Åpne spørsmål" er tom.
 - Arbeidskopien er ren (`git status --porcelain` er tom).
 
-Stopper du her, varsle: `scripts/ntfy.sh "Jaktlogg: /ship stoppet" "<hva som mangler>"`.
+Stopper du her, skriv utfallet: `scripts/ship-utfall.sh "Jaktlogg: /ship stoppet" "<hva som mangler>" "" 4`.
 
 ## 1. Branch
 
 `git fetch origin` og `git switch -c ship/<funksjon> origin/main`, der `<funksjon>` er filnavnet
 uten `.md`. Finnes branchen fra før, fortsett på den og les `git log origin/main..HEAD` først.
 
-Skriv funksjonsnavnet til `"$(git rev-parse --git-common-dir)/ship-aktiv"`. Så lenge fila finnes,
-varsler Stop-vakten Martin hvis du stopper underveis (for eksempel for å spørre om noe).
+`ship-start.sh` har laget `"$(git rev-parse --git-common-dir)/ship-aktiv"`. Finnes den ikke, skriv
+funksjonsnavnet dit selv. Så lenge fila finnes, varsler Stop-vakten Martin hver gang du stopper.
 
 ## 2. Lås akseptansetestene (før all kode)
 
@@ -107,8 +111,8 @@ krysset av i specen står først, merket "ikke varslet i spec".
 
 Push branchen og åpne en **utkast-PR** (`gh pr create --draft`) med tittel
 `Trenger Martin: <funksjon>` og innholdet fra `ESCALATION.md` som beskrivelse.
-Slett `ship-aktiv`, og varsle:
-`scripts/ntfy.sh "Jaktlogg: trenger deg" "<funksjon>: <beslutningen>" <PR-lenke> 4`.
+Skriv utfallet:
+`scripts/ship-utfall.sh "Jaktlogg: trenger deg" "<funksjon>: <beslutningen>" <PR-lenke> 4`.
 Avslutt med lenken og beslutningen. Ikke gjør flere endringer.
 
 Martins svar oppdaterer specen (det gjør Martin, eller du med Martins ja), og så kjøres `/ship` på nytt.
@@ -118,8 +122,9 @@ Martins svar oppdaterer specen (det gjør Martin, eller du med Martins ja), og s
 Sjekk først at porten finnes:
 `gh api repos/{owner}/{repo} --jq .allow_auto_merge` er `true`, og
 `gh api repos/{owner}/{repo}/rules/branches/main` har en regel `required_status_checks` med `check`.
-Mangler en av dem, åpne PR uten auto-merge, varsle "PR klar, men auto-merge er ikke satt opp",
-og avslutt. Ikke prøv å rette innstillingene.
+Mangler en av dem, åpne PR uten auto-merge, skriv utfallet
+`"Jaktlogg: PR venter på deg" "<tittel>: auto-merge er ikke satt opp" <PR-lenke> 4`, og avslutt.
+Ikke prøv å rette innstillingene.
 
 Push branchen og åpne en vanlig PR mot `main`:
 
@@ -130,11 +135,16 @@ Push branchen og åpne en vanlig PR mot `main`:
 Så: `gh pr merge <nr> --auto --squash --delete-branch`, og vent på CI med
 `gh pr checks <nr> --watch --fail-fast` (maks 15 minutter).
 
-| Utfall | Varsel (`scripts/ntfy.sh`) |
+Er PR-en merget, vent på publiseringen: finn kjøringen på `main` for merge-commiten
+(`gh pr view <nr> --json mergeCommit -q .mergeCommit.oid`, så
+`gh run list --branch main --event push --json databaseId,headSha`) og kjør
+`gh run watch <id> --exit-status` (maks 15 minutter). `deploy`-jobben publiserer bare når `check` er grønn.
+
+| Utfall | Utfall (`scripts/ship-utfall.sh`) |
 | --- | --- |
-| Grønn, PR merget | `"Jaktlogg: shippet" "<tittel>" <PR-lenke>` |
+| Merget og publisert | `"Jaktlogg: shippet og publisert" "<tittel>" <PR-lenke>` |
+| Merget, publisering feilet | `"Jaktlogg: publisering feilet" "<tittel>" <lenke til kjøringen> 4` |
 | Rød CI | `"Jaktlogg: CI rød" "<tittel>: <sjekken som feilet>" <PR-lenke> 4`. Ikke fiks videre. |
 | Ingen svar etter 15 min | `"Jaktlogg: CI henger" "<tittel>" <PR-lenke>` |
 
-Slett `ship-aktiv` før du varsler. Avslutt med PR-lenken og utfallet. Publisering til Pages skjer av
-seg selv fra `main` når sjekkene der er grønne.
+Skriv utfallet rett før du avslutter. Avslutt med PR-lenken og utfallet.
