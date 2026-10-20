@@ -16,7 +16,9 @@ alt annet). Da merger GitHub først når CI er grønn. Endre aldri GitHub-innsti
 ikke du: `ship-start.sh` merker økten når `/ship` starter, og når du stopper, sender vakten utfallet.
 Rett før du avslutter, hver gang, skriver du utfallet med
 `scripts/ship-utfall.sh "<tittel>" "<melding>" [lenke] [prioritet]`. Glemmer du det, eller stopper du
-for å spørre om noe, får Martin «/ship venter». Tre røde forsøk varsler vakten selv. Venter du på
+for å spørre om noe, får Martin «/ship venter». Revieweren kjører i bakgrunnen, og du må avslutte turen for
+å få svaret. Det er greit: så lenge en bakgrunnsjobb du har startet kjører, sender vakten ikke «venter»
+(`bakgrunn.js` leser transkriptet). Skriv ikke utfall mens du venter. Tre røde forsøk varsler vakten selv. Venter du på
 Martins ja til en tillatelse (for eksempel fra låsen), varsler `ship-venter.sh` ham.
 Kall ikke `scripts/ntfy.sh` direkte, og skriv aldri ntfy-emnet noe sted.
 
@@ -24,9 +26,10 @@ Kall ikke `scripts/ntfy.sh` direkte, og skriv aldri ntfy-emnet noe sted.
 
 Stopp og si fra til Martin (uten branch og uten `ESCALATION.md`) hvis noe av dette ikke stemmer:
 
-- `$ARGUMENTS` er en fil under `docs/specs/` som finnes.
-- Specen har `Status: godkjent`, og "Åpne spørsmål" er tom.
-- Arbeidskopien er ren (`git status --porcelain` er tom).
+- `scripts/ship-klar.sh $ARGUMENTS` gir exit 0. Den sjekker at specen finnes under `docs/specs/`, har
+  `Status: godkjent` og tom "Åpne spørsmål", og at ingenting annet enn specen og
+  `tests/acceptance/<funksjon>.spec.js` er ucommittet. Det er normalt at Martin har godkjent specen uten å
+  committe den: da blir den med i låse-commiten i steg 2. Exit 1: grunnen er linjene skriptet skriver.
 - Agenttypen `reviewer` står i lista over agenter du kan kalle i denne økten. Agenter lastes når
   Claude Code starter, og `/clear` laster dem ikke på nytt. Mangler den, er grunnen
   «reviewer-agenten er ikke lastet i denne økten. Start Claude Code på nytt og kjør /ship igjen.»
@@ -37,6 +40,7 @@ Stopper du her, skriv utfallet: `scripts/ship-utfall.sh "Jaktlogg: /ship stoppet
 
 `git fetch origin` og `git switch -c ship/<funksjon> origin/main`, der `<funksjon>` er filnavnet
 uten `.md`. Finnes branchen fra før, fortsett på den og les `git log origin/main..HEAD` først.
+En ucommittet spec og akseptansetest blir med over til branchen. Commit dem ikke på `main`.
 
 `ship-start.sh` har laget `"$(git rev-parse --git-common-dir)/ship-aktiv"`. Finnes den ikke, skriv
 funksjonsnavnet dit selv. Så lenge fila finnes, varsler Stop-vakten Martin hver gang du stopper.
@@ -48,7 +52,8 @@ funksjonsnavnet dit selv. Så lenge fila finnes, varsler Stop-vakten Martin hver
 - Låsen spør Martin før fila skrives. Et ja er godkjenningen av testene.
 - Kjør `npx playwright test tests/acceptance/<funksjon>.spec.js`. Testene skal feile nå, fordi
   funksjonen ikke finnes. Består en test allerede, tester den ikke kriteriet: skriv den om.
-- Commit bare spec og akseptansetest, med meldingen `Lås spec og akseptansetester: <funksjon>`.
+- Commit bare spec og akseptansetest (`git add $ARGUMENTS tests/acceptance/<funksjon>.spec.js`), med meldingen
+  `Lås spec og akseptansetester: <funksjon>`. Er specen allerede committet, inneholder commiten bare testen.
   Den teksten er hva eskaleringssjekken ser etter. Ingen annen kode i denne commiten.
 
 Etter dette rører du aldri `docs/specs/` eller `tests/acceptance/`. Er en test feil, er det en
@@ -152,13 +157,15 @@ Push branchen og åpne en vanlig PR mot `main`:
 - Beskrivelse: lenke til specen, hvilke AK som er dekket av hvilke tester, antall review-runder,
   alle `low`-funn som en liste, og "Eskaleringssjekk: ingen treff".
 
-Så: `gh pr merge <nr> --auto --squash --delete-branch`, og vent på CI med
-`gh pr checks <nr> --watch --fail-fast` (maks 15 minutter).
+Så: `gh pr merge <nr> --auto --squash --delete-branch`, og vent på CI i forgrunnen med
+`scripts/vent.sh 450 gh pr checks <nr> --watch --fail-fast` (Bash-timeout `600000`). Exit 124 betyr at
+tiden gikk ut: kjør samme kommando én gang til, til sammen 15 minutter. Bruk aldri `timeout`: den finnes
+ikke på macOS. Kjør ikke ventingen i bakgrunnen.
 
 Er PR-en merget, vent på publiseringen: finn kjøringen på `main` for merge-commiten
 (`gh pr view <nr> --json mergeCommit -q .mergeCommit.oid`, så
 `gh run list --branch main --event push --json databaseId,headSha`) og kjør
-`gh run watch <id> --exit-status` (maks 15 minutter). `deploy`-jobben publiserer bare når `check` er grønn.
+`scripts/vent.sh 450 gh run watch <id> --exit-status` på samme måte (maks to ganger, 15 minutter). `deploy`-jobben publiserer bare når `check` er grønn.
 
 | Utfall | Utfall (`scripts/ship-utfall.sh`) |
 | --- | --- |

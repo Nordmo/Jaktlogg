@@ -15,8 +15,12 @@ const NO_SETTINGS = 'Endring av GitHub-innstillinger er sperret for agenten.';
 function check(cmds) {
   for (const { words, docs, strs } of cmds) {
     const w = words.map(lit);
-    while (w.length && (PREFIX.has(w[0]) || /^[A-Za-z_]\w*=/.test(w[0]))) w.shift();
-    if (w[0] === 'env') { w.shift(); while (w.length && (w[0].startsWith('-') || /^\w+=/.test(w[0]))) w.shift(); }
+    for (;;) {   // prefikser som kjører resten som en kommando: env, nice, timeout og scripts/vent.sh med tidsgrense
+      if (w.length && (PREFIX.has(w[0]) || /^[A-Za-z_]\w*=/.test(w[0]))) w.shift();
+      else if (w[0] === 'env') { w.shift(); while (w.length && (w[0].startsWith('-') || /^\w+=/.test(w[0]))) w.shift(); }
+      else if (/^(nice|timeout|vent\.sh)$/.test(basename(w[0] ?? ''))) { w.shift(); while (w.length && /^(-|[\d.]+[smhd]?$)/.test(w[0])) w.shift(); }
+      else break;
+    }
     if (!w.length) continue;
     const name = basename(w[0]), args = w.slice(1);
     let why = null;
