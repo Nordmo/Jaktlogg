@@ -6,7 +6,9 @@ Høydespor jaktlogg: privat jaktlogg i 3D (GPX/TCX-spor, rypetreff, vær, dronev
 
 ## Kjøre
 
-`python3 -m http.server 8000` og åpne http://localhost:8000. Ingen bygg, avhengigheter, tester eller lint ennå. Krever internett (biblioteker fra CDN, kart, terreng, vær).
+`python3 -m http.server 8000` og åpne http://localhost:8000. Ingen byggesteg. Krever internett (biblioteker fra CDN, kart, terreng, vær).
+
+`npm run check` kjører alle sjekker i `scripts/check.sh` (prosjektregler, ESLint, gitleaks, npm audit, Playwright) og stopper ved første feil. CI (`.github/workflows/check.yml`) kjører samme kommando. Enkeltvis: `npm run lint`, `npx playwright test -g "<navn>"`. Krever `brew install gitleaks` lokalt.
 
 ## Arkitektur
 

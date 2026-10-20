@@ -891,7 +891,6 @@ function smoothByDist(T,arr,half){
 function locate(T,d){d=clamp(d,0,T.total);let lo=0,hi=T.n-1;while(hi-lo>1){const m=(lo+hi)>>1;if(T.cum[m]<=d)lo=m;else hi=m;}const seg=T.cum[hi]-T.cum[lo];return [lo,hi,seg>0?(d-T.cum[lo])/seg:0];}
 function sampleAt(T,arr,d){if(!arr)return null;const [a,b,f]=locate(T,d);return lerp(arr[a],arr[b],f);}
 function posAt(T,d){const [a,b,f]=locate(T,d);const A=T.pts[a],B=T.pts[b];return {lat:lerp(A.lat,B.lat,f),lon:lerp(A.lon,B.lon,f)};}
-const planarFrac=(T,d)=>T.ptotal>0?sampleAt(T,T.pcum,d)/T.ptotal:0;
 function distAtTime(T,ms){if(!T.time)return null;if(ms<=T.time[0])return 0;if(ms>=T.time[T.n-1])return T.total;let lo=0,hi=T.n-1;while(hi-lo>1){const m=(lo+hi)>>1;if(T.time[m]<=ms)lo=m;else hi=m;}const dt=T.time[hi]-T.time[lo];return lerp(T.cum[lo],T.cum[hi],dt>0?(ms-T.time[lo])/dt:0);}
 function buildHeading(T){
   const step=Math.max(4,T.total/5000),L=clamp(T.total*0.012,50,450);
@@ -978,7 +977,6 @@ function wxAt(w,ms){
   const L=k=>w[k][i]!=null&&w[k][j]!=null?lerp(w[k][i],w[k][j],f):w[k][near];
   return {t:L('t'),ws:L('ws'),wg:L('wg'),wd:w.wd[near],wc:w.wc[near],sd:w.sd[near],pr:w.pr[near]};
 }
-const wxShort=s=>s?`${nfT(s.tavg??s.t)} °C · ${nf0.format(s.ws)} m/s ${dirText(s.wd)}`:'';
 
 /* ---------- sample hunt (approximate trace, generated) ---------- */
 function sampleGPX(startISO='2025-09-20T06:30:00Z',seed=7,name='Rypejakt Tromsdalstinden (eksempel)'){
@@ -1030,7 +1028,7 @@ async function seedSamples(){
 /* ---------- state ---------- */
 const state={view:'log',trips:[],allObs:[],season:'all',heat:false,anaOpen:false,ana:{species:'all',dog:'all'},addKind:'rype',trip:null,T:null,pois:[],progress:1,playing:false,duration:40,camMode:'overview',cam:null,camDirty:false,orbitT:0,
   basemap:'sat',light:'day',exag:1.5,terrainOn:true,colorMode:'progress',addMode:false,openPoi:null,exporting:false,cancelExport:false,eleFromTerrain:false};
-let map,posMarker,poiMarkers=[],lastPaintP=-1,styleReady=false;
+let map,posMarker,poiMarkers=[],styleReady=false;
 
 /* ---------- map ---------- */
 const LIGHTS={
@@ -1120,7 +1118,6 @@ function buildMetricExpr(){
   let lo=Infinity,hi=-Infinity;for(const v of arr){lo=Math.min(lo,v);hi=Math.max(hi,v);}if(m==='grade'){lo=-20;hi=25;}
   metric={arr,lo,hi,ramp:RAMPS[m]};metricExpr=true;
 }
-const TODO_COLOR='rgba(235,242,248,0.5)';
 /* Gått rute tegnes i to kilder: 'route-done' (lang, oppdateres sjelden) og 'route-head' (kort hale fra
    der route-done er ferdig tegnet og fram til markøren, oppdateres hver frame). Én stor kilde som
    oppdateres hver frame rekker aldri å bli ferdig tegnet under avspilling og henger etter markøren. */
@@ -1167,7 +1164,7 @@ function paintRoute(p,force){
   if(!styleReady||!state.T||!map.getSource('route-done'))return;
   const T=state.T,d=clamp(p,0,1)*T.total,a=d>0?locate(T,d)[0]:0;
   if(!force&&Math.abs(p-RP.lastP)<0.00005)return;
-  RP.lastP=p;lastPaintP=p;
+  RP.lastP=p;
   if(force){sendBulk(T,a,p,true);map.getSource('route-head').setData(EMPTY);RP.shown=Math.min(RP.shown,a);return;}
   if(RP.B<0||a<RP.B||a-RP.B>=RP.S)sendBulk(T,a,p,false);
   checkRouteShown();if(performance.now()-RP.headAt>=24)setHead(p);
@@ -1806,7 +1803,7 @@ async function openTrip(id){
   state.trip=trip;state.T=T;state.pois=pois;state.eleFromTerrain=false;
   setView('trip');
   $('#crumbTrip').textContent=trip.name;$('#eTitle').value=trip.name;
-  map.getSource('route').setData(routeGeoJSON(T));buildMetricExpr();lastPaintP=-1;resetRoutePaint();state.progress=1;paintRoute(1,true);
+  map.getSource('route').setData(routeGeoJSON(T));buildMetricExpr();resetRoutePaint();state.progress=1;paintRoute(1,true);
   if(!posMarker){const el=document.createElement('div');el.className='pos-mk';posMarker=new maplibregl.Marker({element:el,opacityWhenCovered:'0.9'});}
   const p0=posAt(T,T.total);posMarker.setLngLat([p0.lon,p0.lat]).addTo(map);
   await sleep(40);
@@ -2122,7 +2119,7 @@ function renderWiz(){
   $('#wzTitle').textContent=wz.isNew?'Nytt rypetreff':wz.pend?'Fyll ut rypetreff':'Rediger rypetreff';
   $('#wzBack').hidden=i===0||(!wz.isNew&&!wz.pend&&sum);$('#wzNext').hidden=true;$('#wzSave').hidden=!sum;$('#wzDelete').hidden=wz.isNew||(!sum&&!wz.pend);
   const opt=(v,on,label,sub,sw)=>`<button type="button" class="opt${on?' on':''}" data-v="${v}">${sw?`<i class="sw" style="background:${sw}"></i>`:''}<b>${label}</b>${sub?`<span>${sub}</span>`:''}</button>`;
-  let h='';
+  let h;
   if(wz.step==='group'){
     h=`<h3 class="wz-q">Hva så dere?</h3><div class="opts">${opt('singel',wz.group==='singel','Singelrype','Én fugl')}${opt('kull',wz.group==='kull','Kull eller flokk','Flere fugler sammen')}</div>`;
     if(wz.group==='kull'){h+=`<label class="field"><span>Antall fugler</span>${stepper('wzCount',o.count>1?o.count:6,2,200)}</label>`;$('#wzNext').hidden=false;}
@@ -2292,7 +2289,7 @@ function svgBars(rows,{label=r=>r.key,value=r=>r.rate,note=r=>`${r.n} treff · $
   });
   return s+'</svg>';
 }
-function svgStack(rows,parts,{label=r=>r.key,note=r=>''}={}){
+function svgStack(rows,parts,{label=r=>r.key,note=()=>''}={}){
   const W=560,rh=28,lw=128,nw=150,bw=W-lw-nw-10,max=Math.max(...rows.map(r=>parts.reduce((s,p)=>s+(r.v[p.k]||0),0)),1e-6),H=rows.length*rh+4;
   let s=`<svg viewBox="0 0 ${W} ${H}" role="img">`;
   rows.forEach((r,i)=>{const y=i*rh+2,cy=y+rh/2;let x=lw;

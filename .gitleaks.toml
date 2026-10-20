@@ -1,0 +1,14 @@
+# Standardreglene, men Supabase sin publishable-nøkkel er ment å være offentlig (se README).
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Supabase publishable key"
+regexes = ['''^sb_publishable_[A-Za-z0-9_-]+$''']
+
+# Secret-nøkkelen omgår alle tilgangsregler i Supabase.
+[[rules]]
+id = "supabase-secret-key"
+description = "Supabase secret key"
+regex = '''sb_secret_[A-Za-z0-9_-]{20,}'''
+keywords = ["sb_secret_"]
