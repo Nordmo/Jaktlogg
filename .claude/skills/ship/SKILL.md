@@ -24,9 +24,10 @@ Kall ikke `scripts/ntfy.sh` direkte, og skriv aldri ntfy-emnet noe sted.
 
 Stopp og si fra til Martin (uten branch og uten `ESCALATION.md`) hvis noe av dette ikke stemmer:
 
-- `$ARGUMENTS` er en fil under `docs/specs/` som finnes.
-- Specen har `Status: godkjent`, og "Åpne spørsmål" er tom.
-- Arbeidskopien er ren (`git status --porcelain` er tom).
+- `scripts/ship-klar.sh $ARGUMENTS` gir exit 0. Den sjekker at specen finnes under `docs/specs/`, har
+  `Status: godkjent` og tom "Åpne spørsmål", og at ingenting annet enn specen og
+  `tests/acceptance/<funksjon>.spec.js` er ucommittet. Det er normalt at Martin har godkjent specen uten å
+  committe den: da blir den med i låse-commiten i steg 2. Exit 1: grunnen er linjene skriptet skriver.
 - Agenttypen `reviewer` står i lista over agenter du kan kalle i denne økten. Agenter lastes når
   Claude Code starter, og `/clear` laster dem ikke på nytt. Mangler den, er grunnen
   «reviewer-agenten er ikke lastet i denne økten. Start Claude Code på nytt og kjør /ship igjen.»
@@ -37,6 +38,7 @@ Stopper du her, skriv utfallet: `scripts/ship-utfall.sh "Jaktlogg: /ship stoppet
 
 `git fetch origin` og `git switch -c ship/<funksjon> origin/main`, der `<funksjon>` er filnavnet
 uten `.md`. Finnes branchen fra før, fortsett på den og les `git log origin/main..HEAD` først.
+En ucommittet spec og akseptansetest blir med over til branchen. Commit dem ikke på `main`.
 
 `ship-start.sh` har laget `"$(git rev-parse --git-common-dir)/ship-aktiv"`. Finnes den ikke, skriv
 funksjonsnavnet dit selv. Så lenge fila finnes, varsler Stop-vakten Martin hver gang du stopper.
@@ -48,7 +50,8 @@ funksjonsnavnet dit selv. Så lenge fila finnes, varsler Stop-vakten Martin hver
 - Låsen spør Martin før fila skrives. Et ja er godkjenningen av testene.
 - Kjør `npx playwright test tests/acceptance/<funksjon>.spec.js`. Testene skal feile nå, fordi
   funksjonen ikke finnes. Består en test allerede, tester den ikke kriteriet: skriv den om.
-- Commit bare spec og akseptansetest, med meldingen `Lås spec og akseptansetester: <funksjon>`.
+- Commit bare spec og akseptansetest (`git add $ARGUMENTS tests/acceptance/<funksjon>.spec.js`), med meldingen
+  `Lås spec og akseptansetester: <funksjon>`. Er specen allerede committet, inneholder commiten bare testen.
   Den teksten er hva eskaleringssjekken ser etter. Ingen annen kode i denne commiten.
 
 Etter dette rører du aldri `docs/specs/` eller `tests/acceptance/`. Er en test feil, er det en

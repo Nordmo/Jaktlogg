@@ -12,6 +12,8 @@ Høydespor jaktlogg: privat jaktlogg i 3D (GPX/TCX-spor, rypetreff, vær, dronev
 
 Hooks i `.claude/settings.json`: `lint-file.sh` linter hver fil etter Edit/Write, `verify-before-stop.sh` hindrer avslutning til `npm run check` er grønn, `protect-paths.js` spør Martin før noe skrives til, flyttes inn i eller slettes fra `docs/specs/`, `tests/acceptance/` og `.claude/` (lesing og kjøring av tester og skript der er fritt), og `guard-merge.js` tillater bare `gh pr merge --auto` og sperrer endring av GitHub-innstillinger. Begge vaktene tolker kommandoen med `shell-lex.js`, så tekst i søk og PR-beskrivelser ikke gir alarm. Etter tre røde forsøk skrives `ESCALATION.md` (ikke i git). `ship-start.sh` merker økten når `/ship` starter, og Stop-vakten varsler da Martin hver gang Claude stopper: med utfallet fra `scripts/ship-utfall.sh`, ellers «venter». `ship-venter.sh` (Notification, `permission_prompt`) varsler når Claude venter på et ja under `/ship`.
 
+Rutinen: Martin godkjenner specen (`Status: godkjent`) og kjører `/ship docs/specs/<funksjon>.md` direkte, uten å committe først. `/ship` committer specen sammen med akseptansetestene i låse-commiten på sin egen branch. Annet som ikke er committet stopper `/ship` (`scripts/ship-klar.sh`).
+
 `/ship docs/specs/<funksjon>.md` låser akseptansetestene, implementerer, kaller `reviewer` (Sonnet, maks tre runder), kjører `scripts/escalation-check.js` mot diffen, åpner PR og slår på auto-merge. GitHub merger når CI er grønn, og Pages publiseres fra `main` bare etter grønne sjekker (`deploy`-jobben i `check.yml`). `scripts/ntfy.sh` varsler Martin; emnet ligger i `.ntfy-topic` (i `.gitignore`) og i secret `NTFY_TOPIC`, aldri i en fil som committes.
 
 ## Arkitektur
