@@ -115,3 +115,18 @@ test('utfallet varsles selv om ship-start ikke kjørte', () => {
   expect(stop()).toBe(0);
   expect(varsler()).toEqual(['Jaktlogg: /ship stoppet|specen er ikke godkjent||4']);
 });
+
+// Notification-hooken for permission_prompt: varsel bare når /ship kjører i samme økt.
+const venter = (session, message = 'Claude needs your permission to use Bash') => spawnSync('bash', [resolve('.claude/hooks/ship-venter.sh')],
+  { input: JSON.stringify({ session_id: session, hook_event_name: 'Notification', notification_type: 'permission_prompt', message }), env: { ...process.env, CLAUDE_PROJECT_DIR: repo }, encoding: 'utf8' });
+
+test('varsler når Claude venter på ja under /ship, ellers ikke', () => {
+  venter('okt-1');
+  expect(varsler()).toEqual([]);
+  shipStart('/ship docs/specs/fugl.md', 'okt-1');
+  venter('okt-2');
+  expect(varsler()).toEqual([]);
+  venter('okt-1', 'Låst: docs/specs/fugl.md');
+  expect(varsler()).toEqual(['Jaktlogg: /ship fugl venter på ja|Låst: docs/specs/fugl.md||4']);
+  expect(existsSync(marker())).toBe(true);
+});
