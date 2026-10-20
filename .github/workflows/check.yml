@@ -34,3 +34,53 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run check
+
+  # Publiserer bare når check er grønn, og bare fra main. Krever at Pages-kilden er "GitHub Actions".
+  deploy:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Bare selve appen publiseres, ikke docs/, .claude/ eller SQL.
+      - name: Lag nettstedet
+        run: |
+          mkdir _site
+          cp index.html _site/
+          if [ -f CNAME ]; then cp CNAME _site/; fi
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site
+
+      - id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  # Push til telefonen når main er rød eller publiseringen feiler. Emnet ligger i secret NTFY_TOPIC.
+  varsel:
+    needs: [check, deploy]
+    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Send ntfy
+        env:
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MSG: "${{ needs.check.result == 'success' && 'Publiseringen feilet' || 'Sjekkene er røde, siden er ikke publisert' }}: ${{ github.event.head_commit.message }}"
+        run: |
+          [ -n "$NTFY_TOPIC" ] || { echo "Secret NTFY_TOPIC mangler"; exit 0; }
+          jq -n --arg t "$NTFY_TOPIC" --arg m "${MSG:0:300}" --arg c "$URL" \
+            '{topic: $t, title: "Jaktlogg: main er rød", message: $m, priority: 4, tags: ["warning"], click: $c}' \
+            | curl -fsS -m 10 -o /dev/null -H 'Content-Type: application/json' -d @- https://ntfy.sh/

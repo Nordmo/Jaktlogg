@@ -4,6 +4,9 @@ input=$(cat)
 cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/../..}" || exit 0
 session=$(jq -r '.session_id' <<<"$input")
 counter="/tmp/claude-verify-$session"
+# /ship legger denne fila i .git mens den kjører. Stopper Claude før /ship selv har varslet, får Martin push.
+marker="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)/ship-aktiv"
+stopped() { [ -f "$marker" ] && scripts/ntfy.sh "Jaktlogg: /ship $(cat "$marker") venter" "Claude har stoppet før /ship var ferdig. Se i terminalen." "" 4; exit 0; }
 
 # Commits som ikke er på main ennå (egen branch, eller main som ikke er pushet)
 base=origin/main; git rev-parse -q --verify "$base" >/dev/null || base=main
@@ -11,17 +14,19 @@ ahead=$(git rev-list --count "$base..HEAD" 2>/dev/null || echo 0)
 
 # Ingen endringer i arbeidskopien og ingen nye commits: ingenting å verifisere
 if git diff --quiet HEAD && [ -z "$(git ls-files --others --exclude-standard)" ] && [ "$ahead" -eq 0 ]; then
-  rm -f "$counter"; exit 0
+  rm -f "$counter"; stopped
 fi
 
 if output=$(npm run check 2>&1); then
-  rm -f "$counter"; exit 0          # grønt: Claude får stoppe
+  rm -f "$counter"; stopped          # grønt: Claude får stoppe
 fi
 
 n=$(( $(cat "$counter" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$counter"
 if [ "$n" -ge 3 ]; then
   rm -f "$counter"
   printf '# Eskalering\n\nSjekker feiler etter 3 forsøk.\n\n```\n%s\n```\n' "$(tail -n 60 <<<"$output")" > ESCALATION.md
+  rm -f "$marker"
+  scripts/ntfy.sh "Jaktlogg: eskalering" "Sjekkene feiler etter 3 forsøk. Se ESCALATION.md." "" 4
   exit 0                            # la Claude stoppe, mennesket tar over
 fi
 

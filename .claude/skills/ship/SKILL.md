@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Implementer en godkjent spec, få den reviewet av en uavhengig agent, sjekk eskaleringsreglene mot diffen og åpne PR. Merger aldri selv (før fase 5).
+description: Implementer en godkjent spec, få den reviewet av en uavhengig agent, sjekk eskaleringsreglene mot diffen åpne PR og slå på auto-merge. GitHub merger først når CI er grønn.
 argument-hint: docs/specs/<funksjon>.md
 disable-model-invocation: true
 ---
@@ -9,8 +9,11 @@ disable-model-invocation: true
 Du styrer loopen fra spec til PR. Ruting bestemmes av reglene og tellingen under, aldri av
 ditt eget skjønn om noe er "nytt" eller "løsbart". Svar og commit-meldinger på norsk.
 
-**Du merger aldri.** Fase 5 (auto-merge) er ikke bygget. `/ship` slutter med en PR som Martin
-merger selv. `gh pr merge` er sperret i `.claude/settings.json`.
+**Du merger aldri direkte.** Bare `gh pr merge --auto --squash` er lov (`guard-merge.sh` sperrer
+alt annet). Da merger GitHub først når CI er grønn. Endre aldri GitHub-innstillinger.
+
+**Varsling.** Martin får push med `scripts/ntfy.sh "<tittel>" "<melding>" [lenke] [prioritet]` hver
+gang `/ship` er ferdig eller stopper. Skriv aldri ntfy-emnet noe sted.
 
 ## 0. Forutsetninger
 
@@ -20,10 +23,15 @@ Stopp og si fra til Martin (uten branch og uten `ESCALATION.md`) hvis noe av det
 - Specen har `Status: godkjent`, og "Åpne spørsmål" er tom.
 - Arbeidskopien er ren (`git status --porcelain` er tom).
 
+Stopper du her, varsle: `scripts/ntfy.sh "Jaktlogg: /ship stoppet" "<hva som mangler>"`.
+
 ## 1. Branch
 
 `git fetch origin` og `git switch -c ship/<funksjon> origin/main`, der `<funksjon>` er filnavnet
 uten `.md`. Finnes branchen fra før, fortsett på den og les `git log origin/main..HEAD` først.
+
+Skriv funksjonsnavnet til `"$(git rev-parse --git-common-dir)/ship-aktiv"`. Så lenge fila finnes,
+varsler Stop-vakten Martin hvis du stopper underveis (for eksempel for å spørre om noe).
 
 ## 2. Lås akseptansetestene (før all kode)
 
@@ -99,11 +107,19 @@ krysset av i specen står først, merket "ikke varslet i spec".
 
 Push branchen og åpne en **utkast-PR** (`gh pr create --draft`) med tittel
 `Trenger Martin: <funksjon>` og innholdet fra `ESCALATION.md` som beskrivelse.
+Slett `ship-aktiv`, og varsle:
+`scripts/ntfy.sh "Jaktlogg: trenger deg" "<funksjon>: <beslutningen>" <PR-lenke> 4`.
 Avslutt med lenken og beslutningen. Ikke gjør flere endringer.
 
 Martins svar oppdaterer specen (det gjør Martin, eller du med Martins ja), og så kjøres `/ship` på nytt.
 
-## 7. PR (ingen merge)
+## 7. PR med auto-merge
+
+Sjekk først at porten finnes:
+`gh api repos/{owner}/{repo} --jq .allow_auto_merge` er `true`, og
+`gh api repos/{owner}/{repo}/rules/branches/main` har en regel `required_status_checks` med `check`.
+Mangler en av dem, åpne PR uten auto-merge, varsle "PR klar, men auto-merge er ikke satt opp",
+og avslutt. Ikke prøv å rette innstillingene.
 
 Push branchen og åpne en vanlig PR mot `main`:
 
@@ -111,4 +127,14 @@ Push branchen og åpne en vanlig PR mot `main`:
 - Beskrivelse: lenke til specen, hvilke AK som er dekket av hvilke tester, antall review-runder,
   alle `low`-funn som en liste, og "Eskaleringssjekk: ingen treff".
 
-Avslutt med PR-lenken og at Martin må merge selv.
+Så: `gh pr merge <nr> --auto --squash --delete-branch`, og vent på CI med
+`gh pr checks <nr> --watch --fail-fast` (maks 15 minutter).
+
+| Utfall | Varsel (`scripts/ntfy.sh`) |
+| --- | --- |
+| Grønn, PR merget | `"Jaktlogg: shippet" "<tittel>" <PR-lenke>` |
+| Rød CI | `"Jaktlogg: CI rød" "<tittel>: <sjekken som feilet>" <PR-lenke> 4`. Ikke fiks videre. |
+| Ingen svar etter 15 min | `"Jaktlogg: CI henger" "<tittel>" <PR-lenke>` |
+
+Slett `ship-aktiv` før du varsler. Avslutt med PR-lenken og utfallet. Publisering til Pages skjer av
+seg selv fra `main` når sjekkene der er grønne.

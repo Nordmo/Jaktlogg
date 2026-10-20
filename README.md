@@ -20,7 +20,7 @@ Den enkleste veien er GitHub Pages:
    const CONFIG={ supabaseUrl:'https://xxxx.supabase.co', supabaseAnonKey:'sb_publishable_...' };
    ```
    Da slipper du og jaktkameratene å lime dem inn selv. Publishable-nøkkelen er laget for å ligge i nettsider; dataene beskyttes av innloggingen og tilgangsreglene i SQL-fila.
-3. Gå til **Settings → Pages**, velg branch `main` og mappe `/ (root)`. Etter et minutt ligger siden på `https://<brukernavn>.github.io/<repo>/`.
+3. Gå til **Settings → Pages** og velg **Source: GitHub Actions**. Workflowen `.github/workflows/check.yml` publiserer `index.html` etter hver push til `main`, men bare når alle sjekkene er grønne. Etter et par minutter ligger siden på `https://<brukernavn>.github.io/<repo>/`.
 
 Vil du ikke fylle inn CONFIG, kan du i stedet trykke på kontoknappen øverst til høyre i appen og velge **Koble til database**. Da huskes tilkoblingen i den nettleseren.
 
