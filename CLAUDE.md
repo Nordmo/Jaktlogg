@@ -10,6 +10,8 @@ Høydespor jaktlogg: privat jaktlogg i 3D (GPX/TCX-spor, rypetreff, vær, dronev
 
 `npm run check` kjører alle sjekker i `scripts/check.sh` (prosjektregler, ESLint, gitleaks, npm audit, Playwright) og stopper ved første feil. CI (`.github/workflows/check.yml`) kjører samme kommando. Enkeltvis: `npm run lint`, `npx playwright test -g "<navn>"`. Krever `brew install gitleaks` lokalt.
 
+Hooks i `.claude/settings.json`: `lint-file.sh` linter hver fil etter Edit/Write, og `verify-before-stop.sh` hindrer avslutning til `npm run check` er grønn. Etter tre røde forsøk skrives `ESCALATION.md` (ikke i git).
+
 ## Arkitektur
 
 - Alt er `index.html`: CSS, markup og ett stort `<script>` uten moduler, delt i seksjoner merket `/* ---------- navn ---------- */`. Koden er tett med énlinjers funksjoner; følg den stilen.
