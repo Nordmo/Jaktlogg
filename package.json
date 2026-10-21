@@ -9,6 +9,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@garmin/fitsdk": "21.218.0",
     "@playwright/test": "1.63.0",
     "eslint": "10.12.0",
     "eslint-plugin-html": "8.2.1",
