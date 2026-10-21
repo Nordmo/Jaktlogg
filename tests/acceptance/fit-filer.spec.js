@@ -118,10 +118,15 @@ test('AK4: gzip-pakket FIT gir samme resultat', async ({ page }) => {
 
 // AK5: Etter ny lasting har turen samme distanse, og sporet er lagret som TCX med høyde og puls.
 test('AK5: lagret FIT-tur er TCX med høyde og puls og samme distanse etter ny lasting', async ({ page }) => {
+  // Testen lagrer, laster siden på nytt og åpner turen. Det tar lang tid når maskinen er treg.
+  test.setTimeout(120_000);
   const { id } = await chooseAndSave(page, FIT);
   const before = await page.evaluate(id => Local.getTrip(id).then(t => t.distance_m), id);
   await page.reload();
-  await page.locator('#lLocal').click();
+  // Innloggingsskjermen vises bare når supabase-js er lastet fra CDN. Uten den går appen rett i lokal modus.
+  const local = page.locator('#lLocal');
+  await expect(local.or(page.locator('.trip').first())).toBeVisible({ timeout: 30_000 });
+  if (await local.isVisible()) await local.click();
   await expect(page.locator('.trip')).toHaveCount(4, { timeout: 30_000 });
   await page.locator(`.trip[data-id="${id}"]`).click();
   await expect(page.locator('#playBtn')).toBeVisible({ timeout: 30_000 });
