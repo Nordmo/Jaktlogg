@@ -58,15 +58,18 @@ test('AK3: ukjent ekstern adresse gjør testen rød og nevnes i feilmeldingen', 
 });
 
 // AK4: Versjonene som serveres lokalt, er de samme som index.html peker på.
+// MapLibre ligger i tests/vendor/ (versjon fra lisenslinjen), de andre i node_modules.
 test('AK4: lokale kopier har samme versjon som index.html', async () => {
   const html = readFileSync('index.html', 'utf8');
+  const vendorVersion = () => (readFileSync('tests/vendor/maplibre-gl.js', 'utf8').slice(0, 400).match(/maplibre-gl-js\/blob\/v(\d+\.\d+\.\d+)\//) || [])[1];
   for (const pkg of ['maplibre-gl', '@supabase/supabase-js', '@garmin/fitsdk']) {
     const esc = pkg.replace(/[/.]/g, m => '\\' + m);
     const m = html.match(new RegExp(`${esc}@(\\d+\\.\\d+\\.\\d+)`));
     expect(m, `${pkg} finnes ikke i index.html`).not.toBeNull();
-    const local = JSON.parse(readFileSync(`node_modules/${pkg}/package.json`, 'utf8')).version;
+    const local = pkg === 'maplibre-gl' ? vendorVersion() : JSON.parse(readFileSync(`node_modules/${pkg}/package.json`, 'utf8')).version;
     expect(local, pkg).toBe(m[1]);
   }
+  for (const f of ['maplibre-gl.css', 'LICENSE.txt']) expect(readFileSync(`tests/vendor/${f}`, 'utf8').length, f).toBeGreaterThan(0);
 });
 
 // AK5: Terrenget er flatt på 500 moh. og kommer fra oppstarten.

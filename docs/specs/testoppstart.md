@@ -25,7 +25,10 @@ Testene ligger i `tests/acceptance/testoppstart.spec.js` og bruker den felles op
 1. **AK1:** Gitt den felles oppstarten, når appen åpnes, så vises innloggingsskjermen med «Bruk uten innlogging» hver gang. Når knappen trykkes, så viser jaktloggen de tre eksempelturene.
 2. **AK2:** Gitt den felles oppstarten, når en test åpner appen, åpner en eksempeltur, spiller av og bytter kartlag (Satellitt, Kartverket og OpenTopoMap), så har ingen forespørsel gått til en annen adresse enn `127.0.0.1`. Alt annet er enten besvart av oppstarten eller avvist.
 3. **AK3:** Gitt en forespørsel til en adresse oppstarten ikke kjenner, så feiler testen med en melding som nevner adressen. Nye eksterne avhengigheter blir altså oppdaget i stedet for å slippe stille gjennom.
-4. **AK4:** MapLibre og supabase-js som serveres i testene, er de samme versjonene som `index.html` peker på. Testen leser versjonene fra adressene i `index.html` (`maplibre-gl@x.y.z` og `@supabase/supabase-js@x.y.z`) og sammenligner dem med `version` i `node_modules/<pakke>/package.json`. Er de ulike, feiler testen. Det samme gjelder `@garmin/fitsdk`.
+4. **AK4:** MapLibre, supabase-js og `@garmin/fitsdk` som serveres i testene, er de samme versjonene som `index.html` peker på. Testen leser versjonene fra adressene i `index.html` (`maplibre-gl@x.y.z`, `@supabase/supabase-js@x.y.z` og `@garmin/fitsdk@x.y.z`).
+    - MapLibre sammenlignes med versjonen i lisenslinjen øverst i `tests/vendor/maplibre-gl.js` (`maplibre-gl-js/blob/vX.Y.Z/LICENSE.txt`).
+    - De to andre sammenlignes med `version` i `node_modules/<pakke>/package.json`.
+    - Er versjonene ulike, feiler testen. `tests/vendor/` har også `maplibre-gl.css` og `LICENSE.txt`.
 5. **AK5:** Gitt den felles oppstarten og en åpnet eksempeltur, når kartet er ferdig tegnet, så gir appens egen `terrainAt(lon, lat)` midt på sporet `ele` 500 (±1) og `slope` 0 (±0,5). Terrenget er flatt på 500 moh. og kommer fra oppstarten, ikke fra `s3.amazonaws.com`.
 6. **AK6:** Gitt den felles oppstarten, når en FIT-fil velges (samme kunstige fil som i `fit-filer`), så serveres `@garmin/fitsdk` lokalt, og turdialogen åpnes. AK7 i `fit-filer` (biblioteket hentes først når FIT velges) gjelder fortsatt.
 7. **AK7:** Alle testfiler under `tests/acceptance/` og `tests/e2e/` importerer `test` og `expect` fra `tests/helpers/oppstart.js`, ikke direkte fra `@playwright/test`. Ingen av dem kaller `page.goto` eller trykker `#lLocal` selv, bare gjennom oppstarten. Testen sjekker dette ved å lese filene.
@@ -67,13 +70,13 @@ import { test, expect, startLocal } from '../helpers/oppstart.js';
 await startLocal(page);
 ```
 
-Navigasjonen etter `page.reload()` i AK5 i `fit-filer` (`local.or(...)`) erstattes også med oppstarten. `test.setTimeout(120_000)` står.
+I `fit-filer` byttes bare importen og `beforeEach`. Navigasjonsblokken etter `page.reload()` i AK5 (`local.or(...)`) står urørt, med `test.setTimeout(120_000)`. Ellers ville en `expect`-linje forsvunnet. Godkjent av Martin 2026-10-21.
 
 **Felles oppstart** (`tests/helpers/oppstart.js`):
 - Eksporterer `test` (utvidet med `test.extend`, en automatisk fixture som setter opp `page.route` før hver test), `expect` og `startLocal(page)`.
 - `startLocal(page)` går til `/`, venter på at `#lLocal` blir synlig, trykker den og venter på jaktloggen.
 - Ruting, med én tabell øverst i fila:
-  - `unpkg.com/maplibre-gl@4.7.1/dist/*` gir `node_modules/maplibre-gl/dist/*`.
+  - `unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js` og `.css` gir `tests/vendor/maplibre-gl.js` og `.css`.
   - `cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js` gir `node_modules/@supabase/supabase-js/dist/umd/supabase.js`.
   - `cdn.jsdelivr.net/npm/@garmin/fitsdk@21.218.0/+esm` gir `node_modules/@garmin/fitsdk/src/index.js`. Fila importerer sine egne filer relativt, så resten av `.../fitsdk@21.218.0/<fil>.js` gir `src/<fil>.js`. Sjekk at stiene stemmer før testene låses.
   - `mp4-muxer` og `webm-muxer` avvises. De brukes bare ved videoeksport, og ingen test eksporterer video.
@@ -86,7 +89,15 @@ Navigasjonen etter `page.reload()` i AK5 i `fit-filer` (`local.or(...)`) erstatt
   - Alt annet som ikke er `127.0.0.1`, avvises og registreres. Fixturen feiler testen etterpå hvis listen ikke er tom (AK3).
 - Tester som trenger egne ruter, for eksempel `fit-filer` som avviser Open-Meteo, kan fortsatt legge dem til. Den nyeste `page.route` vinner i Playwright.
 
-**Nye devDependencies** (eksakte versjoner, `--save-exact`): `maplibre-gl@4.7.1` og `@supabase/supabase-js@2.117.2`. Nettsiden bruker dem ikke. De er bare kilden for de lokale kopiene i testene. `@garmin/fitsdk` finnes fra før.
+**Lokale kopier** (beslutning A fra eskaleringen i PR #8, Martin 2026-10-21):
+- **MapLibre:** `maplibre-gl.js`, `maplibre-gl.css` og `LICENSE.txt` (3-Clause BSD) fra `https://unpkg.com/maplibre-gl@4.7.1/dist/` legges uendret i `tests/vendor/`.
+  - Den kommer ikke fra npm, fordi `npm audit` stopper `maplibre-gl@4.7.1` med en critical sårbarhet (GHSA-jrc7-96c5-q579). Oppgraderingen tas i `docs/specs/maplibre-6.md`.
+  - SHA-256 for `maplibre-gl.js`: `be9633c4d870e26fb37f1cfe5c5a77181667114003ea16207ac7850d8da8add1`.
+  - `tests/vendor/**` legges til i `ignores` i `eslint.config.js`, slik at ESLint ikke går gjennom en minifisert fil fra tredjepart. Gitleaks skanner den fortsatt. Gir gitleaks treff i fila, er det en eskalering, ikke et unntak agenten legger inn selv.
+- **supabase-js:** `@supabase/supabase-js@2.117.2` legges inn som devDependency (eksakt versjon, `--save-exact`).
+- **`@garmin/fitsdk`:** serveres fortsatt fra `node_modules`. Biblioteket skal aldri ligge i repoet, fordi Garmin-lisensen forbyr publisering.
+
+Nettsiden bruker ingen av kopiene. De er bare kilden for testene.
 
 **Klikket som hang på «scrolling into view»** (PR #7): Før endringen kjører implementøren `npx playwright test tests/acceptance/fit-filer.spec.js -g AK5 --repeat-each=5` og skriver ned resultatet. Etter endringen kjøres samme kommando igjen, og begge resultatene skrives i PR-beskrivelsen. Henger klikket fortsatt etter endringen, er det en eskalering, ikke noe som skal lappes med lengre tidsgrenser.
 
