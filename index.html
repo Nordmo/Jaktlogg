@@ -410,7 +410,7 @@ textarea.inp{min-height:76px;resize:vertical}
     <div class="seg log-only" id="logMode" role="group" aria-label="Visning"><button data-m="map" class="on">Kart</button><button data-m="ana">Analyse</button></div>
     <div class="spacer"></div>
     <input type="file" id="restoreInput" accept=".json,application/json" hidden>
-    <input type="file" id="gpxInput" accept=".gpx,.tcx,application/gpx+xml,application/vnd.garmin.tcx+xml,application/xml,text/xml" hidden>
+    <input type="file" id="gpxInput" accept=".gpx,.tcx,.fit,application/gpx+xml,application/vnd.garmin.tcx+xml,application/xml,text/xml" hidden>
     <button class="btn primary log-only" id="newTripBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7 9l5-5 5 5M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg><span class="lbl-s">Ny tur</span></button>
     <button class="btn accent trip-only" id="addPoiBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14c0-4 3.5-7 8-7 2 0 3.3-1.5 4.5-2.5 1 .3 1.8 1.2 2 2.2l2.5 1-2.6 1C18 13 15 17 10 17H6"/><path d="M8 17l-1 3M12 17l.5 3"/></svg><span class="lbl-s">Rypetreff</span></button>
     <button class="btn ghost trip-only" id="addOtherBtn" title="Bilde, dronevideo, annet vilt eller notat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z"/><path d="M12 7v6M9 10h6"/></svg><span class="lbl-s">Annet punkt</span></button>
@@ -850,6 +850,30 @@ function parseGPX(text){
   }).filter(p=>isFinite(p.lat)&&isFinite(p.lon)&&Math.abs(p.lat)<=90);
   const wpts=[...doc.getElementsByTagNameNS('*','wpt')].map(w=>{const t=txt(w,'time');return {lat:+w.getAttribute('lat'),lon:+w.getAttribute('lon'),name:txt(w,'name')||'Veipunkt',note:txt(w,'desc')||txt(w,'cmt')||'',time:t?Date.parse(t):null};}).filter(w=>isFinite(w.lat)&&isFinite(w.lon));
   return {name,type,pts,wpts,laps:[]};
+}
+/* ---------- FIT (fra klokka, gjøres om til TCX) ---------- */
+const FITSDK_URL='https://cdn.jsdelivr.net/npm/@garmin/fitsdk@21.218.0/+esm';
+let fitsdk=null;
+const isGzip=b=>b.length>2&&b[0]===0x1f&&b[1]===0x8b;
+const isFitBytes=b=>b.length>12&&String.fromCharCode(b[8],b[9],b[10],b[11])==='.FIT';
+async function gunzip(b){return new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());}
+async function loadFitsdk(){if(!fitsdk){try{fitsdk=await import(FITSDK_URL);}catch(e){throw new Error('Fikk ikke lastet FIT-leseren. Sjekk nettforbindelsen og prøv igjen.',{cause:e});}}return fitsdk;}
+const FIT_TRIGGER={manual:'Manual',distance:'Distance',time:'Time',heartRate:'HeartRate',positionStart:'Location',positionLap:'Location',positionWaypoint:'Location',positionMarked:'Location'};
+async function fitToTcx(bytes){
+  const bad=()=>new Error('Fila kunne ikke leses som FIT-fil. Bruk en .fit-, .gpx- eller .tcx-fil.');
+  if(isGzip(bytes)){try{bytes=await gunzip(bytes);}catch(e){throw bad();}}
+  if(!isFitBytes(bytes))throw bad();
+  const {Decoder,Stream}=await loadFitsdk();let messages;
+  try{({messages}=new Decoder(Stream.fromByteArray(bytes)).read());}catch(e){throw bad();}
+  const deg=v=>v*180/2**31,ms=d=>d instanceof Date?+d:NaN;
+  const recs=(messages.recordMesgs||[]).filter(r=>r.positionLat!=null&&r.positionLong!=null&&isFinite(ms(r.timestamp))).sort((a,b)=>ms(a.timestamp)-ms(b.timestamp));
+  if(recs.length<2)throw new Error('Fant ingen posisjoner i FIT-fila.');
+  let laps=(messages.lapMesgs||[]).filter(l=>isFinite(ms(l.startTime))).sort((a,b)=>ms(a.startTime)-ms(b.startTime));
+  if(!laps.length)laps=[{startTime:recs[0].timestamp,totalElapsedTime:(ms(recs[recs.length-1].timestamp)-ms(recs[0].timestamp))/1000,lapTrigger:'sessionEnd'}];
+  const tp=r=>{const ele=r.enhancedAltitude??r.altitude;return `<Trackpoint><Time>${r.timestamp.toISOString()}</Time><Position><LatitudeDegrees>${deg(r.positionLat)}</LatitudeDegrees><LongitudeDegrees>${deg(r.positionLong)}</LongitudeDegrees></Position>${ele!=null&&isFinite(ele)?`<AltitudeMeters>${ele}</AltitudeMeters>`:''}${r.heartRate!=null?`<HeartRateBpm><Value>${r.heartRate}</Value></HeartRateBpm>`:''}</Trackpoint>`;};
+  const lapXml=laps.map((l,i)=>{const a=i===0?-Infinity:ms(l.startTime),b=i<laps.length-1?ms(laps[i+1].startTime):Infinity;
+    return `<Lap StartTime="${l.startTime.toISOString()}"><TotalTimeSeconds>${+(l.totalElapsedTime??l.totalTimerTime??0)}</TotalTimeSeconds><TriggerMethod>${FIT_TRIGGER[l.lapTrigger]||'Time'}</TriggerMethod><Track>${recs.filter(r=>{const t=ms(r.timestamp);return t>=a&&t<b;}).map(tp).join('')}</Track></Lap>`;}).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"><Activities><Activity Sport="Other"><Id>${recs[0].timestamp.toISOString()}</Id>${lapXml}</Activity></Activities></TrainingCenterDatabase>`;
 }
 function buildTrack(parsed){
   const src=parsed.pts,pts=[{...src[0]}];
@@ -1619,7 +1643,9 @@ function tripStatsFrom(T,startedAt){
 let tripDraft=null;
 async function beginNewTrip(file){
   try{
-    const text=await file.text(),parsed=parseGPX(text),T=buildTrack(parsed);
+    const bytes=new Uint8Array(await file.arrayBuffer());
+    const text=/\.fit$/i.test(file.name)||isFitBytes(bytes)||isGzip(bytes)?await fitToTcx(bytes):new TextDecoder().decode(bytes);
+    const parsed=parseGPX(text),T=buildTrack(parsed);
     tripDraft={isNew:true,gpx:text,parsed,T};
     let lastDog=false;try{lastDog=localStorage.getItem('hoydespor.lastDog')==='1';}catch(e){}
     openTripModal({name:parsed.name,area:'',participants:'',dogs:'',with_dog:lastDog,bag:0,notes:'',conditions:{}},true);
