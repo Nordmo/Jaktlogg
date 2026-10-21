@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { Encoder, Profile } from '@garmin/fitsdk';
-import { test, expect, startLocal, visLogin, sjekkNett, med3D } from '../helpers/oppstart.js';
+import { test, expect, startLocal, visLogin, sjekkNett, med3D, sjekkStartstil } from '../helpers/oppstart.js';
 
 // Akseptansetester for docs/specs/testoppstart.md. Den felles oppstarten (tests/helpers/oppstart.js) skal
 // gi fixturen `nett` med tre lister over forespørsler som ikke går til 127.0.0.1:
@@ -146,7 +146,7 @@ test('AK10: testene kjører i 2D som standard, og pause-klikket tar under 2 s', 
 // AK11: 3D-modus er fortsatt dekket: smoke-testen kjører i 3D, og en tur i 3D kan spilles av uten JavaScript-feil.
 test('AK11: smoke-testen og en avspilling i 3D kjører med terreng på uten pageerror', async ({ page }) => {
   test.setTimeout(120_000);
-  expect(readFileSync('tests/e2e/smoke.spec.js', 'utf8')).toMatch(/med3D\(page\)/);
+  expect(readFileSync('tests/e2e/smoke.spec.js', 'utf8')).toMatch(/startLocal\(page, \{ med3D: true \}\)/);
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   await startLocal(page);
@@ -158,4 +158,11 @@ test('AK11: smoke-testen og en avspilling i 3D kjører med terreng på uten page
   await page.waitForTimeout(2000);
   await page.evaluate(() => document.querySelector('#playBtn').click());
   expect(errors).toEqual([]);
+});
+
+// AK12: Grepet som starter appen i 2D feiler tydelig hvis det ikke finner terrenget i startstilen.
+test('AK12: oppstarten feiler med tydelig melding når startstilen ikke har terrain', async () => {
+  expect(() => sjekkStartstil({ pakket: true, fant: false })).toThrow(/terrain.*makeStyle.*index\.html.*tests\/helpers\/oppstart\.js/s);
+  expect(() => sjekkStartstil({ pakket: false, fant: false })).toThrow(/maplibregl\.Map.*tests\/helpers\/oppstart\.js/s);
+  expect(() => sjekkStartstil({ pakket: true, fant: true })).not.toThrow();
 });

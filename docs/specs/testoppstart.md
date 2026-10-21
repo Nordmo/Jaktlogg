@@ -7,7 +7,7 @@ Godkjent av: Martin, 2026-10-21
 
 Alle nettlesertestene starter appen på samme måte, og ingen test er avhengig av internett. Bibliotekene kommer fra lokale kopier med de samme låste versjonene som `index.html` bruker. Kartfliser og terreng er tomme og flate, og alt annet utenfor maskinen stoppes. Da vises innloggingsskjermen alltid, og en treg eller manglende CDN kan ikke lenger gjøre testene røde. Det er dette som gjorde AK5 i `fit-filer` og de eldre testene ustabile (PR #7).
 
-Testene kjører i 2D som standard. Oppstarten slår av 3D-terrenget når appen er startet, fordi 3D-terreng i programvaregrafikk uten skjermkort gjør hvert bilde svært dyrt. Testene som skal dekke 3D, slår det på igjen selv.
+Testene kjører i 2D som standard. Oppstarten starter appen uten 3D-terreng fra første bilde, fordi 3D-terreng i programvaregrafikk uten skjermkort gjør hvert bilde svært dyrt. Testene som skal dekke 3D, slår det på igjen selv.
 
 ## Ikke-mål
 
@@ -37,7 +37,8 @@ Testene ligger i `tests/acceptance/testoppstart.spec.js` og bruker den felles op
 8. **AK8:** `playwright.config.js` har `workers: 2` både lokalt og i CI.
 9. **AK9:** `npm run check` er grønn. Alle eksisterende tester i `turteller`, `tellelinje-stil`, `fit-filer` og `tests/e2e/smoke.spec.js` består med uendrede `expect`-er.
 10. **AK10:** Gitt den felles oppstarten, når `startLocal` er ferdig, så er 3D-terrenget slått av (`state.terrainOn` er `false`, `map.getTerrain()` er tom). Når en eksempeltur spilles av, så tar et klikk på «pause» under 2 sekunder.
-11. **AK11:** Minst smoke-testen og AK5 i `testoppstart` kjører med 3D-terreng på (`med3D(page)` i oppstarten), og ingen av dem gir `pageerror`. Testen sjekker at `tests/e2e/smoke.spec.js` kaller `med3D`. Den åpner også selv en eksempeltur i 3D, spiller av og setter på pause uten `pageerror`.
+11. **AK11:** Minst smoke-testen og AK5 i `testoppstart` kjører med 3D-terreng på, og ingen av dem gir `pageerror`. Smoke-testen starter med den ekte oppstarten med 3D fra første bilde (`startLocal(page, { med3D: true })`), og testen sjekker at `tests/e2e/smoke.spec.js` gjør det. AK5 slår 3D på etter start (`med3D(page)`). Testen åpner også selv en eksempeltur i 3D, spiller av og setter på pause uten `pageerror`.
+12. **AK12:** Finner oppstarten ikke `terrain` i startstilen til kartet, eller lages kartet ikke med `maplibregl.Map`, så feiler testen med en melding som nevner `terrain`, `makeStyle` i `index.html` og `tests/helpers/oppstart.js`. Det sjekkes ved å kalle kontrollen i oppstarten (`sjekkStartstil`) med en startstil uten terreng. Gitt `startLocal(page, { med3D: true })`, når `map.getTerrain()` er tom etter start, så feiler testen.
 
 ## Berører
 
@@ -77,8 +78,10 @@ await startLocal(page);
 I `fit-filer` byttes bare importen og `beforeEach`. Navigasjonsblokken etter `page.reload()` i AK5 (`local.or(...)`) står urørt, med `test.setTimeout(120_000)`. Ellers ville en `expect`-linje forsvunnet. Godkjent av Martin 2026-10-21.
 
 **Felles oppstart** (`tests/helpers/oppstart.js`):
-- Eksporterer `test` (utvidet med `test.extend`, en automatisk fixture som setter opp `page.route` før hver test), `expect`, `startLocal(page)` og `med3D(page)`.
-- `startLocal(page)` går til `/`, venter på at `#lLocal` blir synlig, trykker den, venter på jaktloggen og slår av terrenget med appens egen `setTerrain(false)`.
+- Eksporterer `test` (utvidet med `test.extend`, en automatisk fixture som setter opp `page.route` før hver test), `expect`, `startLocal(page, { med3D })`, `med3D(page)` og `sjekkStartstil(info)`.
+- Fixturen legger inn en `addInitScript` som pakker inn `maplibregl.Map`. Den fjerner `terrain` fra startstilen før kartet lages, så appen tegnes i 2D fra første bilde. Appen endres ikke.
+- `startLocal(page)` går til `/`, venter på at `#lLocal` blir synlig, trykker den og venter på jaktloggen. Så kaller den `sjekkStartstil`, som feiler testen hvis innpakningen ikke fant `terrain` (AK12). Til slutt kaller den appens egen `setTerrain(false)`, slik at `state.terrainOn` stemmer.
+- `startLocal(page, { med3D: true })` lar startstilen være urørt og feiler testen hvis `map.getTerrain()` er tom etter start. Smoke-testen bruker den.
 - `med3D(page)` slår terrenget på igjen med `setTerrain(true)` og venter til `map.getTerrain()` finnes.
 - Å trykke en kameraknapp (Følg, Drone og så videre) slår terrenget på i appen (`bindUI`). Tester som trykker slike knapper, kjører derfor i 3D.
 - Ruting, med én tabell øverst i fila:
