@@ -670,7 +670,7 @@ textarea.inp{min-height:76px;resize:vertical}
 
 <div class="menu" id="menu" hidden></div>
 <div class="cinema" id="cinema" hidden></div>
-<div class="drop" id="drop" hidden><div>Slipp GPX- eller TCX-fila her<small>Fra Garmin Connect, Strava eller en annen app</small></div></div>
+<div class="drop" id="drop" hidden><div>Slipp GPX-, TCX- eller FIT-fila her<small>Fra Garmin Connect, Strava eller en annen app</small></div></div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -2559,7 +2559,7 @@ function bindUI(){
   addEventListener('dragenter',e=>{if([...e.dataTransfer.types].includes('Files')&&$('#auth').hidden){dragN++;$('#drop').hidden=false;}});
   addEventListener('dragleave',()=>{dragN=Math.max(0,dragN-1);if(!dragN)$('#drop').hidden=true;});
   addEventListener('dragover',e=>e.preventDefault());
-  addEventListener('drop',e=>{e.preventDefault();dragN=0;$('#drop').hidden=true;if(!$('#auth').hidden)return;const f=[...e.dataTransfer.files].find(f=>/\.(gpx|tcx)$/i.test(f.name)||f.type.includes('xml'));if(f)beginNewTrip(f);else toast('Slipp en .gpx- eller .tcx-fil.');});
+  addEventListener('drop',e=>{e.preventDefault();dragN=0;$('#drop').hidden=true;if(!$('#auth').hidden)return;const f=[...e.dataTransfer.files].find(f=>/\.(gpx|tcx|fit)$/i.test(f.name)||f.type.includes('xml'));if(f)beginNewTrip(f);else toast('Slipp en .gpx-, .tcx- eller .fit-fil.');});
   addEventListener('keydown',e=>{
     if(e.target.closest('input,textarea,select')||state.exporting||!$('#auth').hidden)return;
     if(e.key==='Escape'){if(!$('#cinema').hidden)closeCinema();else{const open=['wizModal','poiModal','tripModal','cfgModal','pwModal','exportModal'].find(id=>!$('#'+id).hidden);if(open)$('#'+open).hidden=true;else if(state.addMode)stopAdd();else if(!$('#poiCard').hidden)closePoi();else if(document.body.classList.contains('present'))setPresent(false);}return;}
