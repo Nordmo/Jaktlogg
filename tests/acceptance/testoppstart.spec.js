@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { Encoder, Profile } from '@garmin/fitsdk';
-import { test, expect, startLocal, visLogin, sjekkNett, med3D, sjekkStartstil } from '../helpers/oppstart.js';
+import { test, expect, startLocal, visLogin, sjekkNett, med3D, sjekkStartstil, sjekk3D } from '../helpers/oppstart.js';
 
 // Akseptansetester for docs/specs/testoppstart.md. Den felles oppstarten (tests/helpers/oppstart.js) skal
 // gi fixturen `nett` med tre lister over forespørsler som ikke går til 127.0.0.1:
@@ -76,6 +76,8 @@ test('AK4: lokale kopier har samme versjon som index.html', async () => {
 
 // AK5: Terrenget er flatt på 500 moh. og kommer fra oppstarten.
 test('AK5: terrenget er flatt på 500 moh. midt på sporet', async ({ page, nett }) => {
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
   await startLocal(page);
   await med3D(page);
   await page.getByText('Rypejakt Tromsdalstinden (eksempel)').first().click();
@@ -89,6 +91,7 @@ test('AK5: terrenget er flatt på 500 moh. midt på sporet', async ({ page, nett
   expect(Math.abs(t.ele - 500)).toBeLessThanOrEqual(1);
   expect(Math.abs(t.slope)).toBeLessThanOrEqual(0.5);
   expect(nett.besvart.some(u => u.includes('s3.amazonaws.com/elevation-tiles-prod/terrarium/'))).toBe(true);
+  expect(errors).toEqual([]);
 });
 
 // AK6: @garmin/fitsdk serveres lokalt når en FIT-fil velges.
@@ -165,4 +168,7 @@ test('AK12: oppstarten feiler med tydelig melding når startstilen ikke har terr
   expect(() => sjekkStartstil({ pakket: true, fant: false })).toThrow(/terrain.*makeStyle.*index\.html.*tests\/helpers\/oppstart\.js/s);
   expect(() => sjekkStartstil({ pakket: false, fant: false })).toThrow(/maplibregl\.Map.*tests\/helpers\/oppstart\.js/s);
   expect(() => sjekkStartstil({ pakket: true, fant: true })).not.toThrow();
+  // Andre del: startLocal({ med3D: true }) bruker sjekk3D, som feiler når terrenget mangler etter start.
+  expect(() => sjekk3D(false)).toThrow(/med3D: true.*map\.getTerrain\(\) er tom/s);
+  expect(() => sjekk3D(true)).not.toThrow();
 });
