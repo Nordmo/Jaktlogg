@@ -92,6 +92,10 @@ export function sjekkStartstil(info) {
   if (!info || !info.pakket) throw new Error('Oppstarten fikk ikke pakket inn maplibregl.Map. Kartet lages ikke lenger som før i index.html. Oppdater tests/helpers/oppstart.js.');
   if (!info.fant) throw new Error('Fant ikke terrain i startstilen til kartet (makeStyle i index.html). Oppstarten kan ikke starte i 2D. Oppdater tests/helpers/oppstart.js.');
 }
+// Feiler testen hvis startLocal({ med3D: true }) ikke har terreng rett etter start.
+export function sjekk3D(harTerreng) {
+  if (!harTerreng) throw new Error('startLocal({ med3D: true }): map.getTerrain() er tom etter start. 3D er ikke på fra første bilde.');
+}
 export { expect };
 
 // Åpner appen og venter til innloggingsskjermen med «Bruk uten innlogging» vises.
@@ -108,10 +112,7 @@ export async function startLocal(page, { med3D: tre = false } = {}) {
   await page.locator('#lLocal').click();
   await expect(page.locator('.trip').first().or(page.getByText('Ingen turer ennå'))).toBeVisible({ timeout: 30_000 });
   sjekkStartstil(await page.evaluate(() => window.__oppstart));
-  if (tre) {
-    if (!(await page.evaluate(() => !!map.getTerrain()))) throw new Error('startLocal({ med3D: true }): map.getTerrain() er tom etter start. 3D er ikke på fra første bilde.');
-    return;
-  }
+  if (tre) return sjekk3D(await page.evaluate(() => !!map.getTerrain()));
   await page.evaluate(() => setTerrain(false));
   await page.waitForFunction(() => !map.getTerrain());
 }
