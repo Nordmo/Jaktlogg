@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, startLocal } from '../helpers/oppstart.js';
 
 // Akseptansetester for docs/specs/turteller.md. Kjører i lokal modus med de tre eksempelturene:
 // to i sesong 2025/26 og én i 2024/25.
@@ -8,8 +8,7 @@ let errors;
 test.beforeEach(async ({ page }) => {
   errors = [];
   page.on('pageerror', e => errors.push(e.message));
-  await page.goto('/');
-  await page.locator('#lLocal').click();
+  await startLocal(page);
   await expect(page.locator('.trip')).toHaveCount(3, { timeout: 30_000 });
 });
 
