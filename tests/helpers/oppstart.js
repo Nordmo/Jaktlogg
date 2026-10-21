@@ -4,7 +4,7 @@
 import { test as base, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
-/* global map, setTerrain -- globale i index.html, brukes inne i page.evaluate */
+/* global map, setTerrain, window -- globale i index.html, brukes inne i page.evaluate */
 
 /* ---------- versjoner fra index.html ---------- */
 const html = readFileSync('index.html', 'utf8');
@@ -63,10 +63,35 @@ export const test = base.extend({
       if (REJECT.some(re => re.test(url))) nett.avvist.push(url); else nett.ukjente.push(url);
       return route.abort();
     });
+    // Start appen i 2D fra første bilde: pakk inn maplibregl.Map og fjern terrain fra startstilen, med mindre
+    // testen har bedt om 3D (startLocal med med3D: true). Hva innpakningen fant, sjekkes av sjekkStartstil.
+    await context.addInitScript(() => {
+      window.__oppstart = { pakket: false, fant: false };
+      let ml;
+      Object.defineProperty(window, 'maplibregl', { configurable: true, get: () => ml, set: v => {
+        const Orig = v.Map;
+        v.Map = class extends Orig {
+          constructor(o) {
+            window.__oppstart.pakket = true;
+            const s = o && o.style;
+            window.__oppstart.fant = !!(s && typeof s === 'object' && s.terrain);
+            if (window.__oppstart.fant && !window.__test3D) { const { terrain, ...rest } = s; void terrain; o = { ...o, style: rest }; }
+            super(o);
+          }
+        };
+        ml = v;
+      } });
+    });
     await use(nett);
     sjekkNett(nett);
   }, { auto: true }],
 });
+
+// Feiler testen hvis innpakningen av maplibregl.Map ikke virket, slik at 2D fra start aldri slutter å virke i det stille.
+export function sjekkStartstil(info) {
+  if (!info || !info.pakket) throw new Error('Oppstarten fikk ikke pakket inn maplibregl.Map. Kartet lages ikke lenger som før i index.html. Oppdater tests/helpers/oppstart.js.');
+  if (!info.fant) throw new Error('Fant ikke terrain i startstilen til kartet (makeStyle i index.html). Oppstarten kan ikke starte i 2D. Oppdater tests/helpers/oppstart.js.');
+}
 export { expect };
 
 // Åpner appen og venter til innloggingsskjermen med «Bruk uten innlogging» vises.
@@ -74,12 +99,19 @@ export async function visLogin(page) {
   await page.goto('/');
   await expect(page.locator('#lLocal')).toBeVisible({ timeout: 30_000 });
 }
-// Åpner appen i lokal modus, venter til jaktloggen er tegnet (med turer eller tom) og slår av 3D-terrenget.
-// 3D-terreng i programvaregrafikk uten skjermkort gjør hvert bilde svært dyrt (ca. 400 ms), så testene kjører i 2D.
-export async function startLocal(page) {
+// Åpner appen i lokal modus og venter til jaktloggen er tegnet (med turer eller tom). Appen starter i 2D, fordi
+// 3D-terreng i programvaregrafikk uten skjermkort gjør hvert bilde svært dyrt (ca. 400 ms). Med med3D: true
+// startes appen slik den er, med terreng fra første bilde, og testen feiler hvis terrenget ikke er på.
+export async function startLocal(page, { med3D: tre = false } = {}) {
+  await page.addInitScript(on => { window.__test3D = on; }, tre);
   await visLogin(page);
   await page.locator('#lLocal').click();
   await expect(page.locator('.trip').first().or(page.getByText('Ingen turer ennå'))).toBeVisible({ timeout: 30_000 });
+  sjekkStartstil(await page.evaluate(() => window.__oppstart));
+  if (tre) {
+    if (!(await page.evaluate(() => !!map.getTerrain()))) throw new Error('startLocal({ med3D: true }): map.getTerrain() er tom etter start. 3D er ikke på fra første bilde.');
+    return;
+  }
   await page.evaluate(() => setTerrain(false));
   await page.waitForFunction(() => !map.getTerrain());
 }
