@@ -4,6 +4,7 @@
 import { test as base, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
+/* global map, setTerrain -- globale i index.html, brukes inne i page.evaluate */
 
 /* ---------- versjoner fra index.html ---------- */
 const html = readFileSync('index.html', 'utf8');
@@ -73,9 +74,17 @@ export async function visLogin(page) {
   await page.goto('/');
   await expect(page.locator('#lLocal')).toBeVisible({ timeout: 30_000 });
 }
-// Åpner appen i lokal modus og venter til jaktloggen er tegnet (med turer eller tom).
+// Åpner appen i lokal modus, venter til jaktloggen er tegnet (med turer eller tom) og slår av 3D-terrenget.
+// 3D-terreng i programvaregrafikk uten skjermkort gjør hvert bilde svært dyrt (ca. 400 ms), så testene kjører i 2D.
 export async function startLocal(page) {
   await visLogin(page);
   await page.locator('#lLocal').click();
   await expect(page.locator('.trip').first().or(page.getByText('Ingen turer ennå'))).toBeVisible({ timeout: 30_000 });
+  await page.evaluate(() => setTerrain(false));
+  await page.waitForFunction(() => !map.getTerrain());
+}
+// Slår 3D-terrenget på igjen, for testene som skal dekke 3D-modus.
+export async function med3D(page) {
+  await page.evaluate(() => setTerrain(true));
+  await page.waitForFunction(() => !!map.getTerrain());
 }
