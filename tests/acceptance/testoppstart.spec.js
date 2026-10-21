@@ -11,6 +11,7 @@ import { test, expect, startLocal, visLogin, sjekkNett } from '../helpers/oppsta
 /* global document, state, posAt, terrainAt, mapIdle -- globale i nettleseren og index.html, brukes inne i page.evaluate */
 
 const external = r => !/^https?:\/\/127\.0\.0\.1(:\d+)?\//.test(r);
+const TILE_HOST = { topo: 'cache.kartverket.no', otm: 'tile.opentopomap.org', sat: 'server.arcgisonline.com' };
 
 // AK1: Innloggingsskjermen kommer hver gang, og «Bruk uten innlogging» gir de tre eksempelturene.
 test('AK1: innloggingsskjermen vises hver gang, og lokal modus gir tre eksempelturer', async ({ page }) => {
@@ -35,7 +36,8 @@ test('AK2: ingen forespørsel går til internett når en tur åpnes, spilles av 
   await page.locator('#playBtn').click();
   for (const bm of ['topo', 'otm', 'sat']) {
     await page.evaluate(bm => document.querySelector(`[data-bm="${bm}"]`).click(), bm);
-    await page.evaluate(() => mapIdle(10_000));
+    // Vent til flisene for kartlaget er besvart lokalt, ikke til kartet er «idle» (det kan ta over 10 s uten skjermkort).
+    await expect.poll(() => nett.besvart.some(u => u.includes(TILE_HOST[bm])), { timeout: 15_000 }).toBe(true);
   }
   expect(sent.length).toBeGreaterThan(0);
   const handled = new Set([...nett.besvart, ...nett.avvist]);
