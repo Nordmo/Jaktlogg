@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, startLocal } from '../helpers/oppstart.js';
 import { gzipSync } from 'node:zlib';
 import { Encoder, Profile } from '@garmin/fitsdk';
 
@@ -48,8 +48,7 @@ test.beforeEach(async ({ page }) => {
   page.on('request', r => { if (/@garmin\/fitsdk/.test(r.url())) fitsdkRequests.push(r.url()); });
   // Vær er ikke en del av denne specen. Uten svar blir turen lagret uten værdata, og testen blir rask og lik hver gang.
   await page.route(/open-meteo\.com/, r => r.abort());
-  await page.goto('/');
-  await page.locator('#lLocal').click();
+  await startLocal(page);
   await expect(page.locator('.trip')).toHaveCount(3, { timeout: 30_000 });
 });
 test.afterEach(() => expect(errors).toEqual([]));

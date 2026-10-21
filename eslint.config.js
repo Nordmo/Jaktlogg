@@ -3,7 +3,7 @@ import html from 'eslint-plugin-html';
 import globals from 'globals';
 
 export default [
-  { ignores: ['node_modules/**', 'test-results/**', 'playwright-report/**'] },
+  { ignores: ['node_modules/**', 'test-results/**', 'playwright-report/**', 'tests/vendor/**'] },
   {
     files: ['index.html'],
     plugins: { html },
