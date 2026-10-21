@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { Encoder, Profile } from '@garmin/fitsdk';
-import { test, expect, startLocal, visLogin, sjekkNett } from '../helpers/oppstart.js';
+import { test, expect, startLocal, visLogin, sjekkNett, med3D } from '../helpers/oppstart.js';
 
 // Akseptansetester for docs/specs/testoppstart.md. Den felles oppstarten (tests/helpers/oppstart.js) skal
 // gi fixturen `nett` med tre lister over forespørsler som ikke går til 127.0.0.1:
@@ -8,7 +8,7 @@ import { test, expect, startLocal, visLogin, sjekkNett } from '../helpers/oppsta
 //   nett.avvist:  kjent adresse som avvises med vilje (fonter, vær, Supabase, video)
 //   nett.ukjente: ukjent adresse, avvist og registrert. Ikke tom liste gjør testen rød.
 // `sjekkNett(nett)` kaster en feil som nevner de ukjente adressene. Fixturen kaller den etter hver test.
-/* global document, state, posAt, terrainAt, mapIdle -- globale i nettleseren og index.html, brukes inne i page.evaluate */
+/* global document, state, map, posAt, terrainAt, mapIdle -- globale i nettleseren og index.html, brukes inne i page.evaluate */
 
 const external = r => !/^https?:\/\/127\.0\.0\.1(:\d+)?\//.test(r);
 const TILE_HOST = { topo: 'cache.kartverket.no', otm: 'tile.opentopomap.org', sat: 'server.arcgisonline.com' };
@@ -77,6 +77,7 @@ test('AK4: lokale kopier har samme versjon som index.html', async () => {
 // AK5: Terrenget er flatt på 500 moh. og kommer fra oppstarten.
 test('AK5: terrenget er flatt på 500 moh. midt på sporet', async ({ page, nett }) => {
   await startLocal(page);
+  await med3D(page);
   await page.getByText('Rypejakt Tromsdalstinden (eksempel)').first().click();
   await expect(page.locator('#playBtn')).toBeVisible({ timeout: 30_000 });
   const t = await page.evaluate(async () => {
@@ -127,4 +128,34 @@ test('AK8: playwright.config.js har workers: 2', async () => {
 test('AK9: eksisterende tester har uendret antall expect', async () => {
   const before = { 'tests/acceptance/turteller.spec.js': 15, 'tests/acceptance/tellelinje-stil.spec.js': 14, 'tests/acceptance/fit-filer.spec.js': 43, 'tests/e2e/smoke.spec.js': 4 };
   for (const [f, n] of Object.entries(before)) expect(readFileSync(f, 'utf8').match(/expect\(/g).length, f).toBe(n);
+});
+
+// AK10: Oppstarten slår av 3D-terrenget, og et klikk på pause under avspilling går raskt.
+test('AK10: testene kjører i 2D som standard, og pause-klikket tar under 2 s', async ({ page }) => {
+  await startLocal(page);
+  expect(await page.evaluate(() => [state.terrainOn, map.getTerrain()])).toEqual([false, null]);
+  await page.getByText('Rypejakt Tromsdalstinden (eksempel)').first().click();
+  await expect(page.locator('#playBtn')).toBeVisible({ timeout: 30_000 });
+  await page.locator('#playBtn').click();
+  await page.waitForTimeout(1000);
+  const t0 = Date.now();
+  await page.locator('#playBtn').click();
+  expect(Date.now() - t0).toBeLessThan(2000);
+});
+
+// AK11: 3D-modus er fortsatt dekket: smoke-testen kjører i 3D, og en tur i 3D kan spilles av uten JavaScript-feil.
+test('AK11: smoke-testen og en avspilling i 3D kjører med terreng på uten pageerror', async ({ page }) => {
+  test.setTimeout(120_000);
+  expect(readFileSync('tests/e2e/smoke.spec.js', 'utf8')).toMatch(/med3D\(page\)/);
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await startLocal(page);
+  await med3D(page);
+  await page.getByText('Rypejakt Tromsdalstinden (eksempel)').first().click();
+  await expect(page.locator('#playBtn')).toBeVisible({ timeout: 30_000 });
+  expect(await page.evaluate(() => [state.terrainOn, !!map.getTerrain()])).toEqual([true, true]);
+  await page.evaluate(() => document.querySelector('#playBtn').click());
+  await page.waitForTimeout(2000);
+  await page.evaluate(() => document.querySelector('#playBtn').click());
+  expect(errors).toEqual([]);
 });

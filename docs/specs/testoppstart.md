@@ -5,7 +5,9 @@ Godkjent av: Martin, 2026-10-21
 
 ## Mål
 
-Alle nettlesertestene starter appen på samme måte, og ingen test er avhengig av internett. Bibliotekene kommer fra lokale kopier med de samme låste versjonene som `index.html` bruker. Kartfliser og terreng er tomme og flate, og alt annet utenfor maskinen stoppes. Da vises innloggingsskjermen alltid, terrengtegningen blir billig, og en treg eller manglende CDN kan ikke lenger gjøre testene røde. Det er dette som gjorde AK5 i `fit-filer` og de eldre testene ustabile (PR #7).
+Alle nettlesertestene starter appen på samme måte, og ingen test er avhengig av internett. Bibliotekene kommer fra lokale kopier med de samme låste versjonene som `index.html` bruker. Kartfliser og terreng er tomme og flate, og alt annet utenfor maskinen stoppes. Da vises innloggingsskjermen alltid, og en treg eller manglende CDN kan ikke lenger gjøre testene røde. Det er dette som gjorde AK5 i `fit-filer` og de eldre testene ustabile (PR #7).
+
+Testene kjører i 2D som standard. Oppstarten slår av 3D-terrenget når appen er startet, fordi 3D-terreng i programvaregrafikk uten skjermkort gjør hvert bilde svært dyrt. Testene som skal dekke 3D, slår det på igjen selv.
 
 ## Ikke-mål
 
@@ -34,6 +36,8 @@ Testene ligger i `tests/acceptance/testoppstart.spec.js` og bruker den felles op
 7. **AK7:** Alle testfiler under `tests/acceptance/` og `tests/e2e/` importerer `test` og `expect` fra `tests/helpers/oppstart.js`, ikke direkte fra `@playwright/test`. Ingen av dem kaller `page.goto` eller trykker `#lLocal` selv, bare gjennom oppstarten. Testen sjekker dette ved å lese filene.
 8. **AK8:** `playwright.config.js` har `workers: 2` både lokalt og i CI.
 9. **AK9:** `npm run check` er grønn. Alle eksisterende tester i `turteller`, `tellelinje-stil`, `fit-filer` og `tests/e2e/smoke.spec.js` består med uendrede `expect`-er.
+10. **AK10:** Gitt den felles oppstarten, når `startLocal` er ferdig, så er 3D-terrenget slått av (`state.terrainOn` er `false`, `map.getTerrain()` er tom). Når en eksempeltur spilles av, så tar et klikk på «pause» under 2 sekunder.
+11. **AK11:** Minst smoke-testen og AK5 i `testoppstart` kjører med 3D-terreng på (`med3D(page)` i oppstarten), og ingen av dem gir `pageerror`. Testen sjekker at `tests/e2e/smoke.spec.js` kaller `med3D`. Den åpner også selv en eksempeltur i 3D, spiller av og setter på pause uten `pageerror`.
 
 ## Berører
 
@@ -73,8 +77,10 @@ await startLocal(page);
 I `fit-filer` byttes bare importen og `beforeEach`. Navigasjonsblokken etter `page.reload()` i AK5 (`local.or(...)`) står urørt, med `test.setTimeout(120_000)`. Ellers ville en `expect`-linje forsvunnet. Godkjent av Martin 2026-10-21.
 
 **Felles oppstart** (`tests/helpers/oppstart.js`):
-- Eksporterer `test` (utvidet med `test.extend`, en automatisk fixture som setter opp `page.route` før hver test), `expect` og `startLocal(page)`.
-- `startLocal(page)` går til `/`, venter på at `#lLocal` blir synlig, trykker den og venter på jaktloggen.
+- Eksporterer `test` (utvidet med `test.extend`, en automatisk fixture som setter opp `page.route` før hver test), `expect`, `startLocal(page)` og `med3D(page)`.
+- `startLocal(page)` går til `/`, venter på at `#lLocal` blir synlig, trykker den, venter på jaktloggen og slår av terrenget med appens egen `setTerrain(false)`.
+- `med3D(page)` slår terrenget på igjen med `setTerrain(true)` og venter til `map.getTerrain()` finnes.
+- Å trykke en kameraknapp (Følg, Drone og så videre) slår terrenget på i appen (`bindUI`). Tester som trykker slike knapper, kjører derfor i 3D.
 - Ruting, med én tabell øverst i fila:
   - `unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js` og `.css` gir `tests/vendor/maplibre-gl.js` og `.css`.
   - `cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js` gir `node_modules/@supabase/supabase-js/dist/umd/supabase.js`.
@@ -103,6 +109,12 @@ Nettsiden bruker ingen av kopiene. De er bare kilden for testene.
 
 **Antall arbeidere:** `workers: 2` gjør belastningen lik lokalt (8 kjerner, i dag 4 arbeidere) og i CI. Skriv tiden for `npm run check` før og etter i PR-beskrivelsen.
 
-**3D-terreng:** Testene beholder terrenget, slik appen bruker det, men med flate fliser. Da kjøres kamera- og terrengkoden fortsatt, men uten å laste og dekode ekte høydedata. Testene endrer ikke kamera, terreng eller rutetegning.
+**3D-terreng:** Testene kjører i 2D som standard (AK10). Smoke-testen og AK5 kjører i 3D med flate fliser på 500 moh. (AK11), slik at kamera- og terrengkoden fortsatt kjøres. Testene endrer ikke kamera, terreng eller rutetegning i appen.
+
+Målt i PR #8 med én arbeider, eksempelturen og 4 sekunder avspilling:
+- Med 3D-terreng ble det tegnet 6 bilder (ca. 400 ms per bilde), og et klikk på pause tok 9,7 s.
+- Uten terreng ble det tegnet 150 bilder, og et klikk på pause tok 0,26 s.
+- Lavere pikseltetthet (`deviceScaleFactor: 0.5`) ga ingen forskjell.
+- JavaScript-en i `tick` brukte bare 14 ms totalt. Kartet tegner 0 bilder når ingenting beveger seg.
 
 - Tester: `tests/acceptance/testoppstart.spec.js` med `test('AK1: ...')` osv.
