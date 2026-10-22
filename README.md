@@ -41,11 +41,24 @@ Alle i laget ser alle turer og observasjoner. Hver person kan bare endre og slet
 - **Rypetreff**: trykk på knappen og så i kartet der rypene satt, bruk posisjonen på tidslinjen, eller trykk lenge (høyreklikk på PC) i kartet. Veiviseren spør om singelrype eller kull, miljø, skudd og art. Høyde, helning, eksposisjon og vær lagres automatisk med treffet.
 - **Annet punkt**: bilder, dronevideoer, annet vilt og notater.
 - **Jaktloggen** viser alle turer og ryper på ett kart, med sesongfilter og varmekart.
+- **Nye turer fra klokka** (bare for den som har koblet til intervals.icu, se under): boksen over turlisten viser turer av typen «Hike» fra denne sesongen som ikke er lagt inn ennå. **Legg inn** åpner turdialogen med fila fra klokka, med rundetrykkene som rypetreff. **Ikke jakt** skjuler turen, og **Vis skjulte turer** lar deg hente den tilbake.
 - **Analyse** viser rypetreff per time etter høyde, helning, eksposisjon, vind, temperatur og tid på døgnet, korrigert for hvor lenge dere faktisk gikk i hver kategori. Den viser også art etter høyde, miljø, hund mot uten hund og treffprosent. **Last ned data (CSV)** gir alle treffene som regneark.
 
 ## Oppdatering av en eksisterende database
 
-Har du allerede kjørt `supabase-oppsett.sql`, kjør oppdateringene i SQL Editor i rekkefølge: `supabase-oppdatering-1.sql` (rypetreff, hund og analyse) og `supabase-oppdatering-2.sql` (ping for å holde prosjektet våkent). Begge er trygge å kjøre flere ganger.
+Har du allerede kjørt `supabase-oppsett.sql`, kjør oppdateringene i SQL Editor i rekkefølge: `supabase-oppdatering-1.sql` (rypetreff, hund og analyse), `supabase-oppdatering-2.sql` (ping for å holde prosjektet våkent) og `supabase-oppdatering-3.sql` (turer fra klokka). Alle er trygge å kjøre flere ganger.
+
+## Turer fra klokka (intervals.icu)
+
+Klokka synkroniserer til Garmin Connect, og [intervals.icu](https://intervals.icu) henter turene derfra. Funksjonen `klokke` i Supabase henter dem fra intervals.icu, slik at de dukker opp i jaktloggen. Bare eieren av nøkkelen ser boksen. Jaktkameratene merker ingen endring.
+
+1. Kjør `supabase-oppdatering-3.sql` i SQL Editor (står allerede i `supabase-oppsett.sql` for nye databaser).
+2. Finn API-nøkkelen i intervals.icu under **Settings → Developer Settings**.
+3. Sett to secrets i Supabase under **Edge Functions → Secrets**: `INTERVALS_API_KEY` (nøkkelen) og `INTERVALS_OWNER_EMAIL` (e-posten du logger inn i jaktloggen med). Nøkkelen skal aldri ligge i repoet.
+4. Publiser funksjonen: `npx supabase functions deploy klokke --project-ref <ref>`. Bruk aldri `--no-verify-jwt`. Sjekk i Dashboard at **Verify JWT** står på for `klokke`.
+5. Åpne appen innlogget. Nye turer fra sesongen (fra 1. august) vises over turlisten.
+
+Bruker appen et eget domene (`CNAME`), må domenet legges til i listen øverst i `supabase/functions/klokke/handler.js`.
 
 ## Lagring over flere år
 
