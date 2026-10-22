@@ -116,6 +116,23 @@ export async function startLocal(page, { med3D: tre = false } = {}) {
   await page.evaluate(() => setTerrain(false));
   await page.waitForFunction(() => !map.getTerrain());
 }
+// Åpner appen innlogget med en falsk økt og venter til jaktloggen er tegnet, i 2D som startLocal.
+// svar.bruker er brukeren i økten ({ id, email }). svar.rute(route, request) svarer på alle kall til
+// Supabase-prosjektet (/auth, /rest, /functions). page.route går foran rutingen i oppstarten.
+const SUPABASE = html.match(/supabaseUrl:'(https:\/\/[\w-]+\.supabase\.co)'/)[1];
+export async function startCloud(page, svar) {
+  const ref = new URL(SUPABASE).hostname.split('.')[0], exp = Math.floor(Date.now() / 1000) + 10 * 365 * 86400;
+  const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const token = `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: svar.bruker.id, email: svar.bruker.email, role: 'authenticated', exp })}.falsk-signatur`;
+  const okt = { access_token: token, refresh_token: 'falsk-refresh', token_type: 'bearer', expires_in: exp - Math.floor(Date.now() / 1000), expires_at: exp, user: { id: svar.bruker.id, email: svar.bruker.email, aud: 'authenticated', role: 'authenticated' } };
+  await page.addInitScript(([key, okt]) => { window.__test3D = false; try { localStorage.setItem(key, okt); } catch (e) { void e; } }, [`sb-${ref}-auth-token`, JSON.stringify(okt)]);
+  await page.route(url => url.href.startsWith(SUPABASE + '/'), svar.rute);
+  await page.goto('/');
+  await expect(page.locator('#pane-log .trips')).toBeVisible({ timeout: 30_000 });
+  sjekkStartstil(await page.evaluate(() => window.__oppstart));
+  await page.evaluate(() => setTerrain(false));
+  await page.waitForFunction(() => !map.getTerrain());
+}
 // Slår 3D-terrenget på igjen, for testene som skal dekke 3D-modus.
 export async function med3D(page) {
   await page.evaluate(() => setTerrain(true));

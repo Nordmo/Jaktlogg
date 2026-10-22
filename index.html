@@ -212,6 +212,11 @@ textarea.inp{min-height:76px;resize:vertical}
 .banner{border:1px solid rgba(244,177,62,.4);background:rgba(244,177,62,.08);border-radius:var(--r);padding:12px;display:grid;gap:8px;font-size:14px}
 #tripCount{text-transform:none;letter-spacing:normal;margin-bottom:8px}
 .trips{display:grid;gap:8px}
+.klokke{border:1px solid var(--line-2);border-radius:var(--r);padding:12px;display:grid;gap:8px;font-size:14px}
+.klokke.feil{border-color:var(--line);padding:8px 12px;font-size:13px;color:var(--muted)}
+.klokke-rad{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px}
+.klokke-rad>span:last-child{display:flex;gap:6px}
+.klokke .lenke{justify-self:start;border:0;background:none;padding:2px 0;color:var(--muted);font:inherit;font-size:13px;text-decoration:underline}
 .trip{display:grid;gap:6px;text-align:left;width:100%;padding:12px;border-radius:var(--r);border:1px solid var(--line);background:rgba(255,255,255,.015)}
 .trip:hover,.trip.hl{border-color:var(--line-2);background:var(--raise)}
 .trip .when{display:flex;justify-content:space-between;gap:8px;font:500 11px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
@@ -712,7 +717,7 @@ function mulberry(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1
 let toastTimer;
 function toast(msg,ms=4200){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.hidden=true,ms);}
 function busy(text){const l=$('#loading');if(text){$('#loadingText').textContent=text;l.hidden=false;}else l.hidden=true;}
-function errText(e){const m=(e&&(e.message||e.error_description||e.msg))||String(e);if(/row-level security|permission|not allowed|violates/i.test(m))return 'Du har ikke tilgang til å lagre dette. Sjekk at e-posten din ligger i tabellen «lag», og at du bare endrer egne turer.';if(/Failed to fetch|NetworkError|network/i.test(m))return 'Fikk ikke kontakt med databasen. Sjekk nettforbindelsen.';if(/Payload too large|exceeded the maximum|too large/i.test(m))return 'Fila er for stor. Gratisnivået i Supabase tar maks 50 MB per fil.';return m;}
+function errText(e){const m=(e&&(e.message||e.error_description||e.msg))||String(e);if(e&&e.code==='23505'&&/source_id/.test(`${m} ${e.details||''}`))return 'Turen er allerede lagt inn.';if(/row-level security|permission|not allowed|violates/i.test(m))return 'Du har ikke tilgang til å lagre dette. Sjekk at e-posten din ligger i tabellen «lag», og at du bare endrer egne turer.';if(/Failed to fetch|NetworkError|network/i.test(m))return 'Fikk ikke kontakt med databasen. Sjekk nettforbindelsen.';if(/Payload too large|exceeded the maximum|too large/i.test(m))return 'Fila er for stor. Gratisnivået i Supabase tar maks 50 MB per fil.';return m;}
 
 /* ---------- icons ---------- */
 const P='fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
@@ -762,7 +767,7 @@ function obsName(o){if(o.name)return o.name;if(isGame(o)){const s=o.species||(o.
 const CAMS=[{id:'overview',label:'Oversikt',key:'1'},{id:'follow',label:'Følg',key:'2'},{id:'drone',label:'Drone',key:'3'},{id:'side',label:'Fra siden',key:'4'},{id:'orbit',label:'Bane rundt',key:'5'},{id:'top',label:'Kart 2D',key:'6'},{id:'free',label:'Fri',key:'7'}];
 
 /* ---------- storage: local (IndexedDB) ---------- */
-const TRIP_FIELDS=['id','name','area','started_at','gpx','distance_m','gain_m','duration_s','participants','with_dog','dogs','bag','notes','conditions','weather','weather_summary','track_simple','effort'];
+const TRIP_FIELDS=['id','name','area','started_at','gpx','distance_m','gain_m','duration_s','participants','with_dog','dogs','bag','notes','conditions','weather','weather_summary','track_simple','effort','source_id'];
 const OBS_FIELDS=['id','trip_id','kind','name','species','count','dog_point','shot','note','habitat','outcome','ele','slope','aspect','wx','lat','lon','d','seen_at','media_path','media_type','include_in_video','clip_start','clip_len'];
 const pick=(o,keys)=>{const r={};for(const k of keys)if(o[k]!==undefined)r[k]=o[k];return r;};
 const Local={name:'local',db:null,mem:{trips:new Map(),obs:new Map()},
@@ -786,7 +791,7 @@ const Local={name:'local',db:null,mem:{trips:new Map(),obs:new Map()},
 
 /* ---------- storage: cloud (Supabase) ---------- */
 let sb=null,user=null;
-const TRIP_LIST='id,owner,name,area,started_at,distance_m,gain_m,duration_s,participants,with_dog,dogs,bag,notes,conditions,weather_summary,track_simple,effort';
+const TRIP_LIST='id,owner,name,area,started_at,distance_m,gain_m,duration_s,participants,with_dog,dogs,bag,notes,conditions,weather_summary,track_simple,effort,source_id';
 const OBS_LIST='id,trip_id,owner,kind,name,species,count,shot,dog_point,habitat,outcome,ele,slope,aspect,wx,lat,lon,seen_at';
 const chk=({data,error})=>{if(error)throw error;return data;};
 const Cloud={name:'cloud',mediaCache:new Map(),
@@ -1641,12 +1646,12 @@ function tripStatsFrom(T,startedAt){
 
 /* ---------- trip dialog ---------- */
 let tripDraft=null;
-async function beginNewTrip(file){
+async function beginNewTrip(file,sourceId=null){
   try{
     const bytes=new Uint8Array(await file.arrayBuffer());
     const text=/\.fit$/i.test(file.name)||isFitBytes(bytes)||isGzip(bytes)?await fitToTcx(bytes):new TextDecoder().decode(bytes);
     const parsed=parseGPX(text),T=buildTrack(parsed);
-    tripDraft={isNew:true,gpx:text,parsed,T};
+    tripDraft={isNew:true,gpx:text,parsed,T,source_id:sourceId};
     let lastDog=false;try{lastDog=localStorage.getItem('hoydespor.lastDog')==='1';}catch(e){}
     openTripModal({name:parsed.name,area:'',participants:'',dogs:'',with_dog:lastDog,bag:0,notes:'',conditions:{}},true);
   }catch(err){toast(err.message||'Klarte ikke å lese fila.',6000);}
@@ -1674,7 +1679,7 @@ async function saveTripModal(e){
   try{localStorage.setItem('hoydespor.lastDog',fields.with_dog?'1':'0');}catch(e){}
   try{
     if(dr.isNew){
-      const trip={id:uuid(),gpx:dr.gpx,...fields,...tripStatsFrom(T,startedAt)};
+      const trip={id:uuid(),gpx:dr.gpx,...fields,...tripStatsFrom(T,startedAt)};if(dr.source_id)trip.source_id=dr.source_id;
       const win=tripWindow(T,trip);
       if(win){$('#tSave').textContent='Henter vær';const mid=posAt(T,T.total/2);const w=await fetchWeather(mid.lat,mid.lon,win[0],win[1]);if(w){trip.weather=w;trip.weather_summary=summarizeWeather(w,T,trip);}}
       $('#tSave').textContent='Lagrer';
@@ -1714,6 +1719,57 @@ async function deleteTrip(){
   catch(err){toast(errText(err),7000);}
 }
 
+/* ---------- trips from the watch (intervals.icu) ---------- */
+// Hentes bare innlogget, via edge-funksjonen klokke. Se docs/specs/turer-fra-klokka.md.
+const KLOKKE={acts:null,skip:new Set(),error:false,showHidden:false};
+const osloParts=ms=>Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Oslo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(ms).map(p=>[p.type,p.value]));
+const osloDay=ms=>{const p=osloParts(ms);return `${p.year}-${p.month}-${p.day}`;};
+const fmtOslo=ms=>new Date(ms).toLocaleString('nb-NO',{timeZone:'Europe/Oslo',weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+// 1. august kl. 00:00 norsk tid i inneværende jaktsesong. Da er det alltid sommertid (UTC+2).
+function seasonStart(now=new Date()){const p=osloParts(+now),y=+p.month>=8?+p.year:+p.year-1;return Date.UTC(y,6,31,22);}
+async function fetchKlokke(){
+  let res;try{res=await sb.functions.invoke(`klokke?oldest=${osloDay(seasonStart())}`,{method:'GET',signal:AbortSignal.timeout(8000)});}catch(e){res={error:e};}
+  const {data,error}=res,status=error&&error.context&&error.context.status;
+  if(!error&&Array.isArray(data)){
+    const s=await sb.from('import_skip').select('source_id');
+    KLOKKE.skip=new Set((s.data||[]).map(r=>r.source_id));KLOKKE.acts=data;
+    try{localStorage.setItem('hoydespor.klokke','1');}catch(e){}
+  } else if(status===401||status===403)return;
+  else {let before=false;try{before=localStorage.getItem('hoydespor.klokke')==='1';}catch(e){}
+    if(!error||status||before)KLOKKE.error=true;else return;}
+  renderLog();
+}
+// Deler aktivitetene i nye og skjulte. Logget (egen tur med samme source_id eller start innen 5 min) vises ikke.
+function klokkeSplit(){
+  const mine=state.trips.filter(t=>t.mine),fresh=[],hidden=[];
+  for(const a of KLOKKE.acts||[]){const s=Date.parse(a.start_date);
+    if(mine.some(t=>t.source_id===a.id||(t.started_at&&Math.abs(Date.parse(t.started_at)-s)<=300000)))continue;
+    (KLOKKE.skip.has(a.id)?hidden:fresh).push(a);}
+  const bySt=(a,b)=>Date.parse(b.start_date)-Date.parse(a.start_date);
+  return {fresh:fresh.sort(bySt),hidden:hidden.sort(bySt)};
+}
+function klokkeBox(){
+  if(store!==Cloud)return '';
+  if(KLOKKE.error)return '<div class="klokke feil" id="klokke">Fikk ikke kontakt med klokka</div>';
+  const {fresh,hidden}=klokkeSplit();if(!fresh.length&&!hidden.length)return '';
+  const row=(a,btns)=>`<div class="klokke-rad" data-id="${esc(a.id)}"><span>${fmtOslo(Date.parse(a.start_date))} · ${fmtKm(a.distance||0)} km</span><span>${btns}</span></div>`;
+  return `<div class="klokke" id="klokke">
+    ${fresh.length?`<b>Nye turer fra klokka</b>${fresh.map(a=>row(a,'<button class="btn primary small" data-kl="add">Legg inn</button><button class="btn small" data-kl="skip">Ikke jakt</button>')).join('')}`:''}
+    ${hidden.length?(KLOKKE.showHidden?`<div class="eyebrow">Skjulte turer</div>${hidden.map(a=>row(a,'<button class="btn small" data-kl="unskip">Hent tilbake</button>')).join('')}`:`<button class="lenke" id="klVis">Vis skjulte turer (${hidden.length})</button>`):''}
+  </div>`;
+}
+async function klokkeAct(id,act,btn){
+  btn.disabled=true;
+  try{
+    if(act==='add'){const {data,error}=await sb.functions.invoke(`klokke?id=${encodeURIComponent(id)}`,{method:'GET'});
+      if(error||!data){toast('Fikk ikke hentet turen fra klokka. Prøv igjen litt senere.',6000);return;}
+      await beginNewTrip(new File([data],`${id}.fit`),id);}
+    else if(act==='skip'){const {error}=await sb.from('import_skip').insert({source_id:id});if(error&&error.code!=='23505')throw error;KLOKKE.skip.add(id);renderLog();}
+    else {const {error}=await sb.from('import_skip').delete().eq('source_id',id);if(error)throw error;KLOKKE.skip.delete(id);renderLog();}
+  }catch(err){toast(errText(err),7000);}
+  finally{btn.disabled=false;}
+}
+
 /* ---------- hunt log ---------- */
 async function loadLog(fit=true){
   try{state.trips=await store.listTrips();state.allObs=await store.listAllObs();}
@@ -1748,6 +1804,7 @@ async function renderLog(){
     </div>
     <label class="toggle"><span>Varmekart over rypeobservasjoner</span><input type="checkbox" id="heatToggle" ${state.heat?'checked':''}></label>
     ${banner}
+    ${klokkeBox()}
     ${state.trips.length?`<div class="eyebrow" id="tripCount">${tripCountText(trips.length,state.trips.length,state.season==='all')}</div>`:''}
     <div class="trips">${trips.length?trips.map(t=>tripCard(t,byTrip[t.id]||[])).join(''):`<div class="empty-state"><b>Ingen turer ennå</b><div>Last opp GPX-fila fra jakta, så havner sporet, været og rypene her.</div><button class="btn primary" id="emptyNew">Last opp GPX eller TCX</button></div>`}</div>`;
   $$('#seasons button').forEach(b=>b.addEventListener('click',()=>{state.season=b.dataset.s;renderLog();updateTrackSource();updateObsSource();fitLog();}));
@@ -1758,6 +1815,8 @@ async function renderLog(){
   const en=$('#emptyNew');if(en)en.addEventListener('click',()=>$('#gpxInput').click());
   const mb=$('#migrateBtn');if(mb)mb.addEventListener('click',migrateLocal);
   const cb=$('#connectBtn');if(cb)cb.addEventListener('click',openCfg);
+  $$('#klokke [data-kl]').forEach(b=>b.addEventListener('click',()=>klokkeAct(b.closest('.klokke-rad').dataset.id,b.dataset.kl,b)));
+  const kv=$('#klVis');if(kv)kv.addEventListener('click',()=>{KLOKKE.showHidden=true;renderLog();});
 }
 function tripCard(t,obs){
   const s=tripStart(t),birds=obs.filter(o=>o.kind==='rype').reduce((a,o)=>a+(o.count||1),0),bag=tripBag(t,obs),ws=t.weather_summary;
@@ -2510,6 +2569,7 @@ async function enterApp(){
   if(store===Local){let seeded=false;try{seeded=localStorage.getItem('hoydespor.seeded2')==='1';}catch(e){}
     if(!seeded){const all=await Local.listTrips();if(!all.some(t=>!t.sample))await seedSamples();else for(const t of all.filter(t=>t.sample))await Local.deleteTrip(t.id);try{localStorage.setItem('hoydespor.seeded2','1');}catch(e){}}}
   setView('log');await loadLog(true);
+  if(store===Cloud)fetchKlokke();
 }
 function bindUI(){
   $('#rail').insertAdjacentHTML('beforeend',CAMS.map(c=>`<button class="cam${c.id==='overview'?' on':''}" data-cam="${c.id}" title="${c.label} (${c.key})">${ICON[c.id]}<span>${c.label}</span><kbd>${c.key}</kbd></button>`).join(''));
