@@ -18,17 +18,17 @@ Under avspilling slutter den oransje ruten der markøren er, uansett nettleser o
 
 ## Akseptansekriterier
 
-Testene bruker et syntetisk spor med ca. 4000 punkter som lages i testen, 3D med (flatt) terreng og følgekamera. Testene kjører med programvaregrafikk, så alle avstander måles i sporpunkter eller tegnede bilder (`render`-hendelser), aldri i millisekunder. «Tegnet ende» er punktet lengst ut langs sporet blant koordinatene som `map.querySourceFeatures` gir for `route-done` og `route-head` etter et `render`. «Gap» er antall sporpunkter fra tegnet ende til markøren (`posMarker.getLngLat()`).
+Testene bruker et syntetisk spor med ca. 4000 punkter som lages i testen, 3D med (flatt) terreng. Testene kjører med programvaregrafikk, så alle avstander måles i sporpunkter eller tegnede bilder (`render`-hendelser), aldri i millisekunder. «Tegnet ende» er punktet lengst ut langs sporet blant koordinatene som `map.querySourceFeatures` gir for `route-done` og `route-head` etter et `render`. «Gap» er antall sporpunkter fra tegnet ende til markøren (`posMarker.getLngLat()`).
 
-1. **AK1:** Gitt et langt spor i 3D med følgekamera og en avspillingsfart der hvert tegnede bilde flytter markøren minst 8 sporpunkter, når turen spilles av i minst 30 tegnede bilder, så er gapet høyst 1 sporpunkt i minst 95 % av bildene og aldri over 2. (Rød på `main`: der er gapet 2–3 bilder, altså 16 punkter eller mer.)
-2. **AK2:** Gitt samme avspilling, så ligger markøren aldri mer enn 3 tegnede bilders avspilling bak den egentlige posisjonen, og markøren når siste punkt når avspillingen er ferdig. (Hindrer at AK1 består ved at markøren står stille.)
+1. **AK1:** Gitt et langt spor i 3D med kameraet stående stille i oversikt, flisene ferdig lastet før målingen starter, og en avspillingsfart regnet ut fra den målte bildefrekvensen slik at hvert tegnede bilde flytter markøren minst 8 sporpunkter (både i Chromium og i WebKit), når turen spilles av i minst 30 tegnede bilder, så er gapet høyst 1 sporpunkt i minst 95 % av bildene og aldri over 2. (Rød på `main`: der ligger linjen minst ett bilde bak, altså 8 punkter eller mer.)
+2. **AK2:** Gitt samme oppsett som i AK1 (stillestående kamera, ferdig lastede fliser, fart fra målt bildefrekvens), så ligger markøren aldri mer enn 3 tegnede bilders avspilling bak den egentlige posisjonen, og markøren når siste punkt når avspillingen er ferdig. (Hindrer at AK1 består ved at markøren står stille.)
 3. **AK3:** Gitt avspilling, når brukeren trykker pause og kartet er i ro (`idle`), så er gapet 0, og markøren står på den egentlige posisjonen.
 4. **AK4:** Gitt farging etter høyde, puls og fart (én deltest for hver), når turen spilles av og pauses midt i, så har hvert tegnet segment i `route-head` samme farge (`c`) som segmentet på samme sted i hele ruten fargelagt på én gang (`doneGeoJSON(T,p,0)`).
 5. **AK5:** Gitt `state.exporting`, når `paintRoute(p,true)` kjøres og kartet er i ro, så ender tegnet linje nøyaktig ved `p` (± 1 punkt), og markørlogikken gjør ingenting. Diffen endrer ikke `exportVideo`/`drawFrame`. (Selve videoen kan ikke lages i testene, fordi muxer-bibliotekene avvises.)
 6. **AK6:** Gitt avspilling forbi 70 %, når brukeren spoler tilbake til 30 % og så fram til 60 % (pause, `setProgress(…, true)`), så finnes det etter `idle` ingen tegnet oransje bit etter markøren, ingen hull mellom start og markøren, og tegnet ende er markørens punkt ± 1.
 7. **AK7:** Gitt avspilling i minst 30 tegnede bilder, så kalles `setData` på `route-head` og `route-done` til sammen ikke oftere enn i dag (høyst 1 `route-head` per tegnet bilde, `route-done` høyst hvert `RP.S`-punkt), og den nye markørlogikken kjører høyst én gang per tegnet bilde. Bildefrekvensen måles i tillegg for hånd av Martin i Safari på Grunnfjorden før og etter (Notater).
 8. **AK8:** Gitt avspilling, så viser tallene i visningen (tid, distanse, puls og høyde i `updateReadout`) verdiene for markørens posisjon, ikke for den egentlige posisjonen, i hvert tegnede bilde (± 1 sporpunkt). På pause er de lik verdiene for den egentlige posisjonen. I videoen regnes tallene for samme `p` som linjen og markøren i bildet (`valuesAt(f.p*T.total)` i `drawFrame`). Det stemmer allerede i dag og skal ikke endres.
-9. **AK9:** Testene i `tests/acceptance/rute-folger-markoren.spec.js` kjører og består både i Chromium og i et eget Playwright-prosjekt for WebKit. WebKit-prosjektet kjører bare den fila (`testMatch`), og resten av suiten kjører som før bare i Chromium.
+9. **AK9:** Testene i `tests/acceptance/rute-folger-markoren.spec.js` kjører og består både i Chromium og i WebKit, i egne Playwright-prosjekter som bare kjører den fila (`testMatch`) med `workers: 1`. Hovedprosjektet for Chromium kjører resten av suiten som før og hopper over den fila (`testIgnore`).
 10. **AK10:** Ingen JavaScript-feil (`pageerror`) i løpet av testene.
 
 ## Berører
@@ -50,6 +50,15 @@ Testene bruker et syntetisk spor med ca. 4000 punkter som lages i testen, 3D med
 - Markøren kan ligge høyst 3 tegnede bilders avspilling bak den egentlige posisjonen. Blir gapet større (for eksempel når nye fliser lastes), hopper markøren til den egentlige posisjonen og linjen tar den igjen.
 - Tallene i visningen følger markøren (AK8).
 - Følgekameraet sikter fortsatt mot den egentlige posisjonen, så markøren kan ligge litt bak midten av bildet ved lav bildefrekvens.
+
+### Avgjort av Martin etter eskaleringen (2026-10-23, PR #10)
+
+- I testmiljøet står rutelinjen i kø bak terreng- og kartflisene i workeren mens følgekameraet flytter seg, så AK1 kunne ikke bli grønn med følgekamera. AK1 og AK2 måler derfor med kamera som står stille i oversikt (`setCamMode('free')` med `overviewCam()`, så `setPlaying` ikke bytter til følgekamera), med flisene ferdig lastet. Kravene er uendret.
+- Avspillingsfarten i AK1 og AK2 regnes ut fra den målte bildefrekvensen, ikke faste 30 s, så hvert bilde flytter markøren minst 8 sporpunkter både i Chromium og i WebKit.
+- **Følgekamera i 3D testes ikke automatisk.** Martin sjekker det manuelt i Safari på Grunnfjorden før merge.
+- Løsning B (rutelinjen foran terrengflisene i workerens kø) er avvist. Ingen endringer i MapLibres interne kø.
+- Testene i denne fila kjøres med `workers: 1` (egne prosjekter for Chromium og WebKit), så de ikke tar tidsavbrudd når to 3D-tester kjører samtidig.
+- Treffet «Slettede, skippede eller svekkede tester» i eskaleringssjekken kommer av ordet `testIgnore` i AK9. Det er et falskt treff, godkjent av Martin.
 
 ### Årsak: hypoteser mot koden
 
@@ -77,7 +86,7 @@ Testene bruker et syntetisk spor med ca. 4000 punkter som lages i testen, 3D med
 ### Endringer (trolig)
 
 - `index.html`, seksjonen med rutetegningen: `p` i `doneGeoJSON`, en ny énlinjes `markerAt()`/`syncMarker()` som kalles fra `map.on('render')`, og `setProgress` slutter å sette markøren direkte mens turen spilles av. `updateReadout` regner tallene for markørens posisjon og kalles fra samme sted. `exportVideo` og `drawFrame` røres ikke (`state.exporting` hoppes over).
-- `playwright.config.js`: `projects` med `chromium` (alt, som i dag) og `webkit` (bare `rute-folger-markoren.spec.js`). `browserName` flyttes fra `use` inn i prosjektene.
+- `playwright.config.js`: `projects` med `chromium` (alt unntatt `rute-folger-markoren.spec.js`), og `rute-chromium` og `rute-webkit` (bare den fila, `workers: 1`). `browserName` flyttes fra `use` inn i prosjektene.
 - `.github/workflows/check.yml`: `npx playwright install --with-deps chromium webkit`. `scripts/check.sh` trenger trolig ingen endring, fordi `npx playwright test` kjører alle prosjektene.
 - PR-en oppgir CI-tiden for testjobben før (siste grønne kjøring på `main`) og etter, og hvor lang tid WebKit-prosjektet tar alene.
 - Risiko: WebGL i WebKit med programvaregrafikk på Linux i CI kan være tregere eller mangle. Virker det ikke, stopper `/ship` og spør Martin i stedet for å hoppe over WebKit.

@@ -1202,16 +1202,17 @@ function paintRoute(p,force){
   checkRouteShown();if(performance.now()-RP.headAt>=24)setHead(p);
 }
 /* Linjen vises 2–3 tegnede bilder (eller flere) etter setData, mens markøren flyttes med en gang. Under avspilling
-   står markøren derfor der linjen faktisk er tegnet: høyeste p i route-head (eller route-done) etter hvert bilde.
+   står markøren derfor der linjen faktisk er tegnet: høyeste p i route-head og route-done etter hvert bilde.
    Ligger det mer enn 3 bilder bak, eller turen ikke spilles av, står den på den egentlige posisjonen. */
 const MK={p:1,hist:[]};
-function drawnP(){let m=-1;for(const id of ['route-head','route-done']){for(const f of map.querySourceFeatures(id))if(f.properties.p>m)m=f.properties.p;if(m>=0)break;}return m;}
+function drawnP(){let m=-1;for(const id of ['route-head','route-done'])for(const f of map.querySourceFeatures(id))if(f.properties.p>m)m=f.properties.p;return m;}
 function placeMarker(p){const T=state.T;MK.p=p;const pos=posAt(T,p*T.total);posMarker.setLngLat([pos.lon,pos.lat]);}
 function syncMarker(){
   if(!state.T||!posMarker||state.exporting||state.view!=='trip')return;
-  if(!state.playing){MK.hist=[];return;}
+  if(!state.playing){MK.hist=[];if(MK.p!==state.progress){placeMarker(state.progress);updateReadout();}return;}
   const h=MK.hist;if(!h.length)h.push(MK.p,MK.p,MK.p);h.push(state.progress);if(h.length>4)h.shift();
-  const dp=drawnP(),p=dp>=h[0]&&dp<=state.progress?dp:state.progress;
+  /* sammenlignet i hele sporpunkter: hoveddelen ender på et punkt, mens h[0] er en eksakt posisjon litt forbi det */
+  const T=state.T,pi=q=>locate(T,q*T.total)[0],dp=drawnP(),p=dp>=0&&pi(dp)>=pi(h[0])-1&&dp<=state.progress?dp:state.progress;
   if(p!==MK.p){placeMarker(p);updateReadout();}
 }
 

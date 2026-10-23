@@ -1,15 +1,19 @@
 import { defineConfig } from '@playwright/test';
 
+const RUTE = /acceptance\/rute-folger-markoren\.spec\.js$/;
+
 export default defineConfig({
   testDir: 'tests',
   timeout: 60_000,
   workers: 2,
   retries: process.env.CI ? 1 : 0,
   use: { baseURL: 'http://127.0.0.1:4173' },
-  // WebKit dekker Safari, men bare for rutetegningen (docs/specs/rute-folger-markoren.md). Resten kjører i Chromium.
+  // Rutetegningen (docs/specs/rute-folger-markoren.md) kjører i egne prosjekter, også i WebKit for Safari, én test om
+  // gangen: to 3D-tester samtidig i programvaregrafikk tar tidsavbrudd. Resten av suiten kjører i Chromium som før.
   projects: [
-    { name: 'chromium', use: { browserName: 'chromium' } },
-    { name: 'webkit', use: { browserName: 'webkit' }, testMatch: /acceptance\/rute-folger-markoren\.spec\.js$/ },
+    { name: 'chromium', use: { browserName: 'chromium' }, testIgnore: RUTE },
+    { name: 'rute-chromium', use: { browserName: 'chromium' }, testMatch: RUTE, workers: 1 },
+    { name: 'rute-webkit', use: { browserName: 'webkit' }, testMatch: RUTE, workers: 1 },
   ],
   webServer: {
     command: 'python3 -m http.server 4173 --bind 127.0.0.1',

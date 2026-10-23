@@ -5,6 +5,8 @@ import config from '../../playwright.config.js';
 
 // Akseptansetester for docs/specs/rute-folger-markoren.md.
 // Et langt, oppdiktet spor (4000 punkter, ca. 5 m mellom punktene) lages i testen og åpnes i 3D (flatt terreng).
+// AK1 og AK2 måler med kamera som står stille i oversikt (Martins beslutning i PR #10): med følgekamera står
+// rutelinjen i kø bak terrengflisene i testmiljøet. Følgekamera i 3D sjekker Martin manuelt i Safari.
 // Testene kjører med programvaregrafikk, så alt måles i sporpunkter og tegnede bilder (render-hendelser), aldri i ms.
 // «Tegnet ende» er punktet lengst ut langs sporet blant endepunktene som map.querySourceFeatures gir for
 // route-done og route-head rett etter et render. Den regnes fra geometrien, ikke fra egenskaper i kildene.
@@ -92,6 +94,23 @@ async function spill(page, { bilder = Infinity } = {}) {
   return page.evaluate(() => window.__m.s);
 }
 const median = a => { const s = [...a].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+// Kamera som står stille i oversikt over hele turen, fra p0, med flisene ferdig lastet. 'free' gjør at setPlaying
+// ikke bytter til følgekamera.
+async function stille(page, p0) {
+  await page.evaluate(p => { setCamMode('free', { quiet: true }); setProgress(p, true); map.jumpTo(overviewCam()); state.camDirty = false; }, p0);
+  await ro(page);
+  await nesteRender(page);
+}
+// Varighet regnet ut fra målt bildefrekvens, så hvert tegnede bilde flytter markøren ca. 12 sporpunkter (tick bruker
+// høyst 0,1 s per bilde). Spiller av noen bilder for å måle, og setter så turen tilbake til p0.
+async function kalibrer(page, p0) {
+  const v = await page.evaluate(() => new Promise(res => {
+    const t = [], på = () => { t.push(performance.now()); if (t.length >= 10) { map.off('render', på); setPlaying(false); state.camDirty = false; res(t); } };
+    state.duration = 1000; map.on('render', på); setPlaying(true);
+  }).then(t => { const d = t.slice(1).map((x, i) => x - t[i]).sort((a, b) => a - b), dt = Math.min(0.1, d[Math.floor(d.length / 2)] / 1000); return state.T.n * dt / 12; }));
+  await stille(page, p0);
+  await page.evaluate(v => { state.duration = v; }, v);
+}
 // Minst 8 sporpunkter per bilde, ellers måler testen ikke noe.
 function sjekkFart(s) {
   const steg = s.slice(1).map((x, i) => x.ri - s[i].ri).filter(d => d > 0);
@@ -105,7 +124,8 @@ const sha = t => createHash('sha256').update(t).digest('hex');
 // AK1, AK3, AK7 og AK8 deler én avspilling, fordi 3D koster ca. 1 s per bilde i programvaregrafikk.
 test('AK1, AK3, AK7 og AK8: linjen følger markøren, gapet er 0 på pause, ikke mer arbeid per bilde, og tallene følger markøren', async ({ page }) => {
   const errors = await start(page);
-  await forbered(page, 0.1);
+  await stille(page, 0.1);
+  await kalibrer(page, 0.1);
   const alle = await spill(page, { bilder: 50 });
   const r = await page.evaluate(() => ({ n: window.__m.n, S: RP.S }));
   const s = alle.slice(3).filter(x => x.playing && x.ende >= 0);
@@ -165,7 +185,8 @@ test('AK1, AK3, AK7 og AK8: linjen følger markøren, gapet er 0 på pause, ikke
 
 test('AK2: markøren ligger aldri mer enn 3 tegnede bilder bak og når siste punkt', async ({ page }) => {
   const errors = await start(page);
-  await forbered(page, 0.88);
+  await stille(page, 0.88);
+  await kalibrer(page, 0.88);
   const s = await spill(page);
   expect(s.length).toBeGreaterThanOrEqual(30);
   sjekkFart(s.slice(3));
@@ -186,7 +207,8 @@ test('AK4: farging etter høyde, puls og fart har samme fargeinndeling i hode og
     await test.step(`AK4: ${modus}`, async () => {
       await page.evaluate(m => { const el = document.querySelector('#colorMode'); el.value = m; el.dispatchEvent(new Event('change')); }, modus);
       expect(await page.evaluate(() => state.colorMode)).toBe(modus);
-      await forbered(page, 0.2 + k * 0.2);
+      // Stillestående kamera, som i AK1 og AK2: med følgekamera blir rutekildene i Chromium ikke ferdig lastet i tide.
+      await stille(page, 0.2 + k * 0.2);
       await spill(page, { bilder: 8 });
       await rutenKlar(page);
       const r = await page.evaluate(() => {
@@ -260,17 +282,17 @@ test('AK6 og AK10: spoling bakover og fremover gir ingen gamle eller manglende b
   expect(errors).toEqual([]);
 });
 
-test('AK9: WebKit-prosjektet kjører bare denne fila, Chromium kjører hele suiten', () => {
-  const p = config.projects || [];
-  const navn = x => `${x.name} ${(x.use || {}).browserName || ''}`;
-  const wk = p.find(x => /webkit/i.test(navn(x))), cr = p.find(x => /chromium/i.test(navn(x)));
-  expect(wk, 'mangler et WebKit-prosjekt i playwright.config.js').toBeTruthy();
-  expect(cr, 'mangler et Chromium-prosjekt i playwright.config.js').toBeTruthy();
-  expect((wk.use || {}).browserName).toBe('webkit');
-  expect((cr.use || {}).browserName).toBe('chromium');
-  const treff = [].concat(wk.testMatch || []);
-  expect(treff.length).toBeGreaterThan(0);
-  for (const t of treff) expect(String(t)).toMatch(/rute-folger-markoren/);
-  expect(cr.testMatch ?? null).toBeNull();
-  expect(cr.testIgnore ?? null).toBeNull();
+test('AK9: egne prosjekter med workers: 1 for denne fila i Chromium og WebKit, hovedprosjektet kjører resten', () => {
+  const p = config.projects || [], fil = /rute-folger-markoren/, liste = x => [].concat(x || []).map(String);
+  const hoved = p.find(x => x.name === 'chromium');
+  expect(hoved, 'mangler prosjektet chromium i playwright.config.js').toBeTruthy();
+  expect((hoved.use || {}).browserName).toBe('chromium');
+  expect(hoved.testMatch ?? null).toBeNull();
+  expect(liste(hoved.testIgnore).some(t => fil.test(t)), 'chromium skal hoppe over denne fila').toBe(true);
+  const rute = p.filter(x => liste(x.testMatch).some(t => fil.test(t)));
+  expect(rute.map(x => (x.use || {}).browserName).sort()).toEqual(['chromium', 'webkit']);
+  for (const r of rute) {
+    expect(r.workers, `${r.name}: workers`).toBe(1);
+    for (const t of liste(r.testMatch)) expect(t).toMatch(fil);
+  }
 });
