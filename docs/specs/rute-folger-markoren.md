@@ -58,6 +58,7 @@ Testene bruker et syntetisk spor med ca. 4000 punkter som lages i testen, 3D med
 - **Følgekamera i 3D testes ikke automatisk.** Martin sjekker det manuelt i Safari på Grunnfjorden før merge.
 - Løsning B (rutelinjen foran terrengflisene i workerens kø) er avvist. Ingen endringer i MapLibres interne kø.
 - Testene i denne fila kjøres med `workers: 1` (egne prosjekter for Chromium og WebKit), så de ikke tar tidsavbrudd når to 3D-tester kjører samtidig.
+- AK8 sammenligner tallene i visningen med tegnet ende ± 2 sporpunkter (mot markøren fortsatt ± 1). Både markøren og tegnet ende avrundes til nærmeste sporpunkt, så riktige tall kan havne utenfor ± 1. Godkjent av Martin.
 - Treffet «Slettede, skippede eller svekkede tester» i eskaleringssjekken kommer av ordet `testIgnore` i AK9. Det er et falskt treff, godkjent av Martin.
 
 ### Årsak: hypoteser mot koden

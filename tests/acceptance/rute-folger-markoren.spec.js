@@ -62,13 +62,13 @@ async function installer(page) {
     map.on('render', () => { if (M.på) M.s.push({ ende: ende(deler()), mi: mark(), ri: ekte(), playing: state.playing, tall: tall() }); });
     for (const id of ['route-head', 'route-done']) { const s = map.getSource(id), o = s.setData.bind(s); s.setData = d => { if (M.på) M.n[id]++; return o(d); }; }
     const oq = map.querySourceFeatures; map.querySourceFeatures = function (...a) { if (M.på) M.n.q++; return oq.apply(this, a); };
-    // Tallene i avlesningen for alle posisjoner mellom sporpunkt i-1 og i+1.
-    M.kandidater = i => {
-      const a = T.cum[Math.max(0, i - 1)], b = T.cum[Math.min(T.n - 1, i + 1)], o = { Distanse: new Set(), Høyde: new Set(), Tid: new Set(), Puls: new Set() };
-      for (let s = 0; s <= 60; s++) { const v = valuesAt(a + (b - a) * s / 60); o.Distanse.add(fmtKm(v.d)); o.Høyde.add(nf0.format(v.ele)); o.Tid.add(fmtDur(v.elapsed)); o.Puls.add(nf0.format(v.hr)); }
+    // Tallene i avlesningen for alle posisjoner mellom sporpunkt i-w og i+w.
+    M.kandidater = (i, w = 1) => {
+      const a = T.cum[Math.max(0, i - w)], b = T.cum[Math.min(T.n - 1, i + w)], o = { Distanse: new Set(), Høyde: new Set(), Tid: new Set(), Puls: new Set() };
+      for (let s = 0; s <= 120; s++) { const v = valuesAt(a + (b - a) * s / 120); o.Distanse.add(fmtKm(v.d)); o.Høyde.add(nf0.format(v.ele)); o.Tid.add(fmtDur(v.elapsed)); o.Puls.add(nf0.format(v.hr)); }
       return o;
     };
-    M.stemmer = (t, i) => { const k = M.kandidater(i); return Object.keys(k).filter(n => !k[n].has(t[n])); };
+    M.stemmer = (t, i, w) => { const k = M.kandidater(i, w); return Object.keys(k).filter(n => !k[n].has(t[n])); };
   });
 }
 const nesteRender = page => page.evaluate(() => new Promise(r => { map.once('render', r); map.triggerRepaint(); }));
@@ -151,7 +151,8 @@ test('AK1, AK3, AK7 og AK8: linjen følger markøren, gapet er 0 på pause, ikke
     const feil = await page.evaluate(s => {
       const M = window.__m, out = [];
       s.forEach((x, k) => {
-        const m = M.stemmer(x.tall, x.mi), e = M.stemmer(x.tall, x.ende);
+        // ± 2 mot tegnet ende: både markøren og tegnet ende er avrundet til nærmeste sporpunkt (Martin, PR #10).
+        const m = M.stemmer(x.tall, x.mi), e = M.stemmer(x.tall, x.ende, 2);
         if (m.length) out.push(`bilde ${k}: ${m.join(',')} viser ikke markørens posisjon (${x.mi})`);
         if (e.length) out.push(`bilde ${k}: ${e.join(',')} viser ikke tegnet ende (${x.ende})`);
       });
