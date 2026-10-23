@@ -1103,7 +1103,7 @@ function initMap(){
     map.addSource('route',{type:'geojson',data:EMPTY});
     map.addSource('route-done',{type:'geojson',data:EMPTY});
     map.addSource('route-head',{type:'geojson',data:EMPTY});
-    hookRoutePaint();
+    hookRoutePaint();map.on('render',syncMarker);
     map.addLayer({id:'all-tracks-casing',type:'line',source:'all-tracks',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#05080c','line-width':5,'line-opacity':.5}});
     map.addLayer({id:'all-tracks-line',type:'line',source:'all-tracks',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':['case',['boolean',['feature-state','hl'],false],'#ffd27a','#f4b13e'],'line-width':['case',['boolean',['feature-state','hl'],false],4.5,2.5],'line-opacity':.9}});
     map.addLayer({id:'all-tracks-hit',type:'line',source:'all-tracks',paint:{'line-width':18,'line-color':'#000','line-opacity':0}});
@@ -1173,12 +1173,14 @@ function doneGeoJSON(T,p,i0=0,exact=true){
   const coords=[];for(let i=i0;i<=a;i++)coords.push([T.pts[i].lon,T.pts[i].lat]);
   if(exact&&f>0&&b>a)coords.push([end.lon,end.lat]);
   if(coords.length<2)return EMPTY;
-  if(!metric)return {type:'Feature',properties:{},geometry:{type:'LineString',coordinates:coords}};
-  const feats=[],step=Math.max(1,Math.ceil(T.n/220)),last=i0+coords.length-1;
+  /* p: andel av turen der featuren slutter, så syncMarker kan lese hvor langt linjen faktisk er tegnet */
+  const last=i0+coords.length-1,pe=(last>a?d:T.cum[a])/T.total,pAt=s=>s>=last?pe:T.cum[s]/T.total;
+  if(!metric)return {type:'Feature',properties:{p:pe},geometry:{type:'LineString',coordinates:coords}};
+  const feats=[],step=Math.max(1,Math.ceil(T.n/220));
   for(let g=Math.floor(i0/step)*step;g<last;g+=step){
     const s0=Math.max(g,i0),s1=Math.min(g+step,last);if(s1<=s0)continue;
     const mid=T.cum[Math.min(T.n-1,g+Math.floor(step/2))];
-    feats.push({type:'Feature',properties:{c:rampColor(metric.ramp,(sampleAt(T,metric.arr,mid)-metric.lo)/((metric.hi-metric.lo)||1))},geometry:{type:'LineString',coordinates:coords.slice(s0-i0,s1-i0+1)}});}
+    feats.push({type:'Feature',properties:{c:rampColor(metric.ramp,(sampleAt(T,metric.arr,mid)-metric.lo)/((metric.hi-metric.lo)||1)),p:pAt(s1)},geometry:{type:'LineString',coordinates:coords.slice(s0-i0,s1-i0+1)}});}
   return {type:'FeatureCollection',features:feats};
 }
 function sendBulk(T,a,p,exact){
@@ -1198,6 +1200,29 @@ function paintRoute(p,force){
   if(force){sendBulk(T,a,p,true);map.getSource('route-head').setData(EMPTY);RP.shown=Math.min(RP.shown,a);return;}
   if(RP.B<0||a<RP.B||a-RP.B>=RP.S)sendBulk(T,a,p,false);
   checkRouteShown();if(performance.now()-RP.headAt>=24)setHead(p);
+}
+/* Linjen vises 2–3 tegnede bilder (eller flere) etter setData, mens markøren flyttes med en gang. Under avspilling
+   står markøren derfor der linjen faktisk er tegnet: høyeste p i route-head og route-done etter hvert bilde.
+   Ligger det mer enn 3 bilder bak, eller turen ikke spilles av, står den på den egentlige posisjonen. */
+const MK={p:1,hist:[]};
+/* p teller bare når biten faktisk ender ved spissen: biter i andre fliser har samme p, men ender ved flisgrensen */
+function drawnP(){
+  /* toleransen er 2,5 flisenheter (8192 per flis) på flisens egen zoom (_vectorTileFeature._z): fjerne fliser i 3D har grovere koordinater */
+  const T=state.T,k=Math.cos(T.pts[0].lat*RAD);let m=-1;
+  const atTip=(c,pos,z)=>Math.hypot((c[0]-pos.lon)*k,c[1]-pos.lat)*111320<=2.5*40075016*k/Math.pow(2,z)/8192+0.5;
+  for(const id of ['route-head','route-done'])for(const f of map.querySourceFeatures(id)){
+    const p=f.properties.p;if(!(p>m))continue;const g=f.geometry,ls=g.type==='LineString'?[g.coordinates]:g.type==='MultiLineString'?g.coordinates:[],pos=posAt(T,p*T.total),z=(f._vectorTileFeature||{})._z??Math.floor(map.getZoom());
+    if(ls.some(c=>c.length&&atTip(c[c.length-1],pos,z)))m=p;}
+  return m;
+}
+function placeMarker(p){const T=state.T;MK.p=p;const pos=posAt(T,p*T.total);posMarker.setLngLat([pos.lon,pos.lat]);}
+function syncMarker(){
+  if(!state.T||!posMarker||state.exporting||state.view!=='trip')return;
+  if(!state.playing){MK.hist=[];if(MK.p!==state.progress){placeMarker(state.progress);updateReadout();}return;}
+  const h=MK.hist;if(!h.length)h.push(MK.p,MK.p,MK.p);h.push(state.progress);if(h.length>4)h.shift();
+  /* sammenlignet i hele sporpunkter: hoveddelen ender på et punkt, mens h[0] er en eksakt posisjon litt forbi det */
+  const T=state.T,pi=q=>locate(T,q*T.total)[0],dp=drawnP(),p=dp>=0&&pi(dp)>=pi(h[0])-1&&dp<=state.progress?dp:state.progress;
+  if(p!==MK.p){placeMarker(p);updateReadout();}
 }
 
 /* ---------- cameras ---------- */
@@ -1277,12 +1302,13 @@ function setPlaying(on){
   if(on&&state.progress>=0.999)state.progress=0;
   state.playing=on;state.camDirty=true;
   if(on&&state.camMode==='overview')setCamMode('follow',{quiet:true});
+  if(!on&&state.T&&posMarker&&!state.exporting){placeMarker(state.progress);updateReadout();}
   $('#playBtn').innerHTML=on?ICON.pause:ICON.play;$('#playBtn').setAttribute('aria-label',on?'Pause':'Spill av');
 }
 function setProgress(p,fromUser=false){
   const T=state.T;if(!T)return;state.progress=clamp(p,0,1);if(fromUser)state.camDirty=true;
-  paintRoute(state.progress,false);const pos=posAt(T,state.progress*T.total);posMarker.setLngLat([pos.lon,pos.lat]);
-  updateReveal(state.playing);updateReadout();updateScrub();drawCharts();
+  paintRoute(state.progress,false);if(!state.playing){placeMarker(state.progress);updateReadout();}
+  updateReveal(state.playing);updateScrub();drawCharts();
 }
 
 /* ---------- readout / scrubber ---------- */
@@ -1298,7 +1324,7 @@ function valuesAt(d){
   return o;
 }
 function updateReadout(){
-  const T=state.T,v=valuesAt(state.progress*T.total);
+  const T=state.T,v=valuesAt(MK.p*T.total);
   const items=[['Distanse',`${fmtKm(v.d)}<small> / ${fmtKm(T.total)} km</small>`],['Høyde',`${nf0.format(v.ele)}<small> moh</small>`]];
   if(v.elapsed!=null)items.push(['Tid',`${fmtDur(v.elapsed)}<small> · ${fmtClock(v.time)}</small>`]);
   if(v.wx)items.push(['Vær',`${nfT(v.wx.t)}<small> °C</small> ${nf0.format(v.wx.ws)}<small> m/s ${dirText(v.wx.wd)}</small>`]);
