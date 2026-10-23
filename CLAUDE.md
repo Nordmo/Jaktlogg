@@ -28,6 +28,9 @@ Rutinen: Martin godkjenner specen (`Status: godkjent`) og kjører `/ship docs/sp
 
 - `map._elevationFreeze=false` før `jumpTo` og på `moveend` omgår en feil i MapLibre 4. Uten den sikter kameraet mot feil høyde og havner inne i fjellet.
 - Gått rute tegnes med to kilder: `route-done` (lang, sjelden oppdatert) og `route-head` (kort hale, hver frame). Ikke bytt til line-gradient/line-progress (feil på svingete turer), og ikke slå dem sammen (henger etter markøren).
+- Linjen vises først 2–3 tegnede bilder etter `setData` (to runder til workeren: dataene, så hver flis), i programvaregrafikk ofte mange flere. Markøren står derfor der linjen faktisk er tegnet: `doneGeoJSON` gir hver feature egenskapen `p`, og `syncMarker` (på `render`) leser høyeste `p`. Ikke sett markøren til `state.progress` under avspilling igjen. Tallene i visningen (`updateReadout`) følger markøren (`MK.p`), kameraet og grafene følger `state.progress`.
+- Hver `setData` på en GeoJSON-kilde laster alle flisene i kilden på nytt, også tomme, og hver flis gjør at MapLibre sletter terrengteksturen under den (`freeRtt` i `_terrainDataCallback`). Med 3D tegnes hele terrenget på nytt etter hver `route-head`-oppdatering. Feature-state og datadrevne `setPaintProperty` er ingen vei rundt: det første vises ikke i 3D, det andre laster kilden på nytt.
+- I Safari bruker MapLibre opptil 3 workers. Hver GeoJSON-kilde har én fast worker, så `route-done` og `route-head` kan få svar i ulik rekkefølge. Ikke bygg logikk som antar rekkefølge mellom kildene.
 - Gi aldri `.poi-mk` eller andre markører `position` i CSS. Det overstyrer MapLibres plassering.
 - Nye tabeller trenger egne `grant`-linjer og RLS-policyer, fordi "Automatically expose new tables" er av i Supabase.
 - Bruk alltid plassholderen `din@epost.no` i SQL-filene, aldri ekte e-postadresser.

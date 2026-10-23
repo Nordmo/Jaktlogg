@@ -10,7 +10,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 40 # akseptansetestene for rutetegningen kjører i 3D med programvaregrafikk, også i WebKit
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -32,7 +32,7 @@ jobs:
           rm gitleaks.tar.gz
 
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - run: npm run check
 
   # Publiserer bare når check er grønn, og bare fra main. Krever at Pages-kilden er "GitHub Actions".
