@@ -1,7 +1,9 @@
 name: Sjekker
 
+# Én kjøring per commit: push bare på main (publisering), ellers pull_request.
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -10,16 +12,19 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # Nettleserne og systempakkene deres ligger i bildet, så de hentes ikke med apt (det tok opptil 40 min for WebKit).
+    # Versjonen må være lik @playwright/test i package.json (sjekkes i scripts/repo-rules.js).
+    container: mcr.microsoft.com/playwright:v1.63.0-noble
     timeout-minutes: 40 # akseptansetestene for rutetegningen kjører i 3D med programvaregrafikk, også i WebKit
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # gitleaks går gjennom hele historikken
 
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: npm
+      # Testserveren bruker python3 og hook-testene jq. Bildet har dem trolig ikke. Små pakker, men med grense.
+      - name: Installer python3 og jq
+        timeout-minutes: 5
+        run: command -v python3 >/dev/null && command -v jq >/dev/null || { apt-get update && apt-get install -y --no-install-recommends python3 jq; }
 
       - name: Installer gitleaks
         env:
@@ -32,7 +37,6 @@ jobs:
           rm gitleaks.tar.gz
 
       - run: npm ci
-      - run: npx playwright install --with-deps chromium webkit
       - run: npm run check
 
   # Publiserer bare når check er grønn, og bare fra main. Krever at Pages-kilden er "GitHub Actions".
