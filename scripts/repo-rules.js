@@ -20,6 +20,11 @@ for (const f of readdirSync('.').filter(f => f.endsWith('.sql'))) {
   }
 }
 
+// CI kjører i Playwrights container. Bildet må ha samme versjon som @playwright/test, ellers mangler nettleserne.
+const pw = JSON.parse(readFileSync('package.json', 'utf8')).devDependencies['@playwright/test'];
+const image = readFileSync('.github/workflows/check.yml', 'utf8').match(/mcr\.microsoft\.com\/playwright:v([\d.]+)-/);
+if (!image || image[1] !== pw) errors.push(`check.yml: Playwright-bildet (${image ? image[1] : 'mangler'}) må ha samme versjon som @playwright/test (${pw}).`);
+
 if (errors.length) {
   console.error(errors.join('\n'));
   process.exit(1);
