@@ -151,8 +151,9 @@ test('AK7: halen slutter ved markøren og starter ved enden av route-done i hver
     const paa = () => {
       gap.push(H.gap()); foran.push(H.foran());
       // Fra punkt RP.shown til markøren skal hvert punkt være oransje (ingen hull mellom route-done og halen).
+      // Bare punkter innenfor lerretet teller (godkjent av Martin): ved denne zoomen er bare ca. 20 punkter bak markøren synlige.
       const a = locate(state.T, state.progress * state.T.total)[0], i0 = Math.max(RP.shown - 1, a - 25); let mangler = 0;
-      for (let i = i0; i <= a; i++) if (!H.naer(H.px(i), 2)) mangler++;
+      for (let i = i0; i <= a; i++) { const q = H.px(i); if (H.farge(q) && !H.naer(q, 2)) mangler++; }
       hull.push(mangler);
       if (gap.length >= 30) { map.off('render', paa); setPlaying(false); res({ gap, foran, hull }); }
     };
@@ -233,10 +234,11 @@ test('AK9: på pause er gapet 0, og spoling gir ingen gamle eller manglende bite
       await ovenfra(page, p);
       const r = await page.evaluate(() => {
         const H = window.__h, a = locate(state.T, state.progress * state.T.total)[0]; H.les();
-        let bak = 0; for (let i = a - 30; i < a; i++) if (!H.naer(H.px(i), 2)) bak++;
-        return { gap: H.gap(), foran: H.foran(), bak };
+        // Bare punkter innenfor lerretet teller (godkjent av Martin), og minst 8 av dem må være synlige (ca. 21 px loddrett mellom punktene, så bare 9–10 får plass bak markøren).
+        let bak = 0, synlige = 0; for (let i = a - 30; i < a; i++) { const q = H.px(i); if (!H.farge(q)) continue; synlige++; if (!H.naer(q, 2)) bak++; }
+        return { gap: H.gap(), foran: H.foran(), bak, nok: synlige >= 8 };
       });
-      expect(r, `etter spoling til ${p}`).toEqual({ gap: 0, foran: 0, bak: 0 });
+      expect(r, `etter spoling til ${p}`).toEqual({ gap: 0, foran: 0, bak: 0, nok: true });
     });
   }
   expect(errors).toEqual([]);

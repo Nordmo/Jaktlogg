@@ -1102,7 +1102,6 @@ function initMap(){
     map.addSource('all-obs',{type:'geojson',data:EMPTY});
     map.addSource('route',{type:'geojson',data:EMPTY});
     map.addSource('route-done',{type:'geojson',data:EMPTY});
-    map.addSource('route-head',{type:'geojson',data:EMPTY});
     hookRoutePaint();
     map.addLayer({id:'all-tracks-casing',type:'line',source:'all-tracks',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#05080c','line-width':5,'line-opacity':.5}});
     map.addLayer({id:'all-tracks-line',type:'line',source:'all-tracks',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':['case',['boolean',['feature-state','hl'],false],'#ffd27a','#f4b13e'],'line-width':['case',['boolean',['feature-state','hl'],false],4.5,2.5],'line-opacity':.9}});
@@ -1111,11 +1110,10 @@ function initMap(){
     map.addLayer({id:'route-casing',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-color':'#05080c','line-width':['interpolate',['linear'],['zoom'],10,4,16,9],'line-opacity':.55}});
     map.addLayer({id:'route-line',type:'line',source:'route',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],10,2.5,16,5.5],'line-color':'rgba(235,242,248,0.5)'}});
     map.addLayer({id:'route-glow',type:'line',source:'route-done',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],10,8,16,18],'line-blur':8,'line-color':'#f4b13e','line-opacity':.45}});
-    map.addLayer({id:'route-glow-h',type:'line',source:'route-head',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],10,8,16,18],'line-blur':8,'line-color':'#f4b13e','line-opacity':.45}});
     map.addLayer({id:'route-done',type:'line',source:'route-done',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],10,2.5,16,5.5],'line-color':['coalesce',['get','c'],'#f4b13e']}});
-    map.addLayer({id:'route-done-h',type:'line',source:'route-head',layout:{'line-cap':'round','line-join':'round'},paint:{'line-width':['interpolate',['linear'],['zoom'],10,2.5,16,5.5],'line-color':['coalesce',['get','c'],'#f4b13e']}});
     map.addLayer({id:'route-hit',type:'line',source:'route',paint:{'line-width':22,'line-color':'#000','line-opacity':0}});
     map.addLayer({id:'obs-circle',type:'circle',source:'all-obs',paint:{'circle-radius':['interpolate',['linear'],['coalesce',['get','count'],1],1,5,12,12],'circle-color':['get','color'],'circle-stroke-color':'#0a0f15','circle-stroke-width':1.6,'circle-opacity':['case',['==',['get','trip_id'],''],.95,.95],'circle-pitch-alignment':'viewport'}});
+    map.addLayer(TAIL,'obs-circle');
     styleReady=true;
     map.on('mousemove','route-hit',onRouteHover);
     map.on('mouseleave','route-hit',()=>{$('#tip').hidden=true;map.getCanvas().style.cursor='';});
@@ -1139,6 +1137,7 @@ function routeGeoJSON(T){return {type:'Feature',properties:{},geometry:{type:'Li
 /* route colouring */
 const RAMPS={ele:['#2f6b8f','#5aa9b8','#d9d48a','#f4b13e','#fff1d6'],grade:['#5aa0d6','#a3d27f','#f2d45c','#f08a3c','#e0433b'],speed:['#3b5bdb','#4dabf7','#a3d27f','#f4b13e','#ff6b3d'],hr:['#5f8fd6','#7fc8b4','#f2d45c','#f08a3c','#e0433b']};
 function hex(h){const n=parseInt(h.slice(1),16);return [n>>16&255,n>>8&255,n&255];}
+function rgb01(c){const m=c.match(/\d+/g);return m?[+m[0]/255,+m[1]/255,+m[2]/255]:[1,1,1];}
 function hexA(h,a){const [r,g,b]=hex(h);return `rgba(${r},${g},${b},${a})`;}
 function rampColor(stops,t){t=clamp(t,0,1)*(stops.length-1);const i=Math.min(stops.length-2,Math.floor(t)),f=t-i;const a=hex(stops[i]),b=hex(stops[i+1]);return `rgb(${Math.round(lerp(a[0],b[0],f))},${Math.round(lerp(a[1],b[1],f))},${Math.round(lerp(a[2],b[2],f))})`;}
 let metric=null,metricExpr=null;
@@ -1148,11 +1147,11 @@ function buildMetricExpr(){
   let lo=Infinity,hi=-Infinity;for(const v of arr){lo=Math.min(lo,v);hi=Math.max(hi,v);}if(m==='grade'){lo=-20;hi=25;}
   metric={arr,lo,hi,ramp:RAMPS[m]};metricExpr=true;
 }
-/* Gått rute tegnes i to kilder: 'route-done' (lang, oppdateres sjelden) og 'route-head' (kort hale fra
-   der route-done er ferdig tegnet og fram til markøren, oppdateres hver frame). Én stor kilde som
-   oppdateres hver frame rekker aldri å bli ferdig tegnet under avspilling og henger etter markøren. */
-const RP={B:-1,shown:0,sent:0,done:0,S:50,lastP:0,headAt:0,confB:-1,confAt:0};
-function resetRoutePaint(){RP.B=-1;RP.shown=0;RP.confB=-1;RP.lastP=0;RP.headAt=0;RP.S=state.T?Math.max(30,Math.ceil(state.T.n/60)):50;}
+/* Gått rute: 'route-done' (GeoJSON, lang, oppdateres hvert RP.S-punkt) og halen 'route-tail' fra der route-done er
+   ferdig tegnet (RP.shown) og fram til markøren, tegnet i hvert bilde. Halen er et custom layer og ikke en GeoJSON-kilde:
+   i 3D står setData i kø bak terrengflisene i workerne (sekunder i Safari), så en GeoJSON-hale henger etter markøren. */
+const RP={B:-1,shown:0,sent:0,done:0,S:50,lastP:0,confB:-1,confAt:0};
+function resetRoutePaint(){RP.B=-1;RP.shown=0;RP.confB=-1;RP.lastP=0;RP.S=state.T?Math.max(30,Math.ceil(state.T.n/60)):50;}
 function hookRoutePaint(){
   const src=map.getSource('route-done');
   const fin=ok=>{RP.done=Math.min(RP.done+1,RP.sent);if(ok&&RP.done>=RP.sent){RP.confB=RP.B;RP.confAt=performance.now();}checkRouteShown();};
@@ -1164,8 +1163,11 @@ function checkRouteShown(){
   /* halen flyttes først når hoveddelen faktisk er tegnet (eller etter 0,3 s om kameraet laster nye fliser) */
   if(RP.confB<0||RP.confB===RP.shown||RP.done<RP.sent)return;
   if(!map.isSourceLoaded('route-done')&&performance.now()-RP.confAt<300)return;
-  RP.shown=RP.confB;if(state.T&&!state.exporting)setHead(RP.lastP);
+  RP.shown=RP.confB;setHead();
 }
+/* fargen i faste grupper på segStep punkter (gruppen som starter i punkt g), felles for route-done og halen */
+const segStep=T=>Math.max(1,Math.ceil(T.n/220));
+function segColor(T,g){const mid=T.cum[Math.min(T.n-1,g+Math.floor(segStep(T)/2))];return rampColor(metric.ramp,(sampleAt(T,metric.arr,mid)-metric.lo)/((metric.hi-metric.lo)||1));}
 /* linje fra punkt i0 til posisjon p (andel av turen), fargelagt i faste segmenter så hale og hoveddel matcher */
 function doneGeoJSON(T,p,i0=0,exact=true){
   const d=clamp(p,0,1)*T.total;if(d<=0)return EMPTY;
@@ -1174,31 +1176,90 @@ function doneGeoJSON(T,p,i0=0,exact=true){
   if(exact&&f>0&&b>a)coords.push([end.lon,end.lat]);
   if(coords.length<2)return EMPTY;
   if(!metric)return {type:'Feature',properties:{},geometry:{type:'LineString',coordinates:coords}};
-  const feats=[],step=Math.max(1,Math.ceil(T.n/220)),last=i0+coords.length-1;
+  const feats=[],step=segStep(T),last=i0+coords.length-1;
   for(let g=Math.floor(i0/step)*step;g<last;g+=step){
     const s0=Math.max(g,i0),s1=Math.min(g+step,last);if(s1<=s0)continue;
-    const mid=T.cum[Math.min(T.n-1,g+Math.floor(step/2))];
-    feats.push({type:'Feature',properties:{c:rampColor(metric.ramp,(sampleAt(T,metric.arr,mid)-metric.lo)/((metric.hi-metric.lo)||1))},geometry:{type:'LineString',coordinates:coords.slice(s0-i0,s1-i0+1)}});}
+    feats.push({type:'Feature',properties:{c:segColor(T,g)},geometry:{type:'LineString',coordinates:coords.slice(s0-i0,s1-i0+1)}});}
   return {type:'FeatureCollection',features:feats};
 }
 function sendBulk(T,a,p,exact){
   RP.B=a;RP.sent++;
   map.getSource('route-done').setData(doneGeoJSON(T,p,0,exact));
 }
-function setHead(p){
-  const T=state.T;RP.headAt=performance.now();
-  const d=clamp(p,0,1)*T.total,a=d>0?locate(T,d)[0]:0;
-  map.getSource('route-head').setData(RP.shown>a||d<=0?EMPTY:doneGeoJSON(T,p,RP.shown));
-}
+/* halen tegnes i route-tail sin render, så her trengs bare et nytt bilde */
+function setHead(){if(map)map.triggerRepaint();}
 function paintRoute(p,force){
   if(!styleReady||!state.T||!map.getSource('route-done'))return;
   const T=state.T,d=clamp(p,0,1)*T.total,a=d>0?locate(T,d)[0]:0;
   if(!force&&Math.abs(p-RP.lastP)<0.00005)return;
   RP.lastP=p;
-  if(force){sendBulk(T,a,p,true);map.getSource('route-head').setData(EMPTY);RP.shown=Math.min(RP.shown,a);return;}
+  if(force){sendBulk(T,a,p,true);RP.shown=Math.min(RP.shown,a);setHead();return;}
   if(RP.B<0||a<RP.B||a-RP.B>=RP.S)sendBulk(T,a,p,false);
-  checkRouteShown();if(performance.now()-RP.headAt>=24)setHead(p);
+  checkRouteShown();setHead();
 }
+/* Halen som custom layer (WebGL). Den tegnes etter terrenget med dybdetest, så den skjules bak fjell som route-done.
+   Interne deler av MapLibre (se Fallgruver i CLAUDE.md):
+   - Laget må ligge etter alle draperte lag (line, fill, raster, hillshade, background), rett før obs-circle. Ellers
+     deles terrengteksturene i to stabler, og terrenget tegnes to ganger (målt 29,5 → 27,5 bilder/s i Safari).
+   - Matrisen er modelViewProjectionMatrix (tredje argument til render): x og y i verdenspiksler, z i meter.
+     customLayerMatrix mangler forskyvningen for terrenghøyden i kartets senter og gir feil høyde.
+   - Punktene ligger relativt til første punkt, og forskyvningen legges inn i matrisen i Float64, ellers hopper
+     halen ved høy zoom (Float32 er for grovt for verdenspiksler).
+   Bredden er i verdenspiksler, så den følger terrenget som den draperte route-done. */
+const TAIL_LIFT=0.5;
+const tailWidth=(z,a,b)=>z<=10?a:z>=16?b:a+(b-a)*(z-10)/6;
+const TAIL={id:'route-tail',type:'custom',renderingMode:'3d',
+  onAdd(m,gl){
+    const sh=(t,src)=>{const s=gl.createShader(t);gl.shaderSource(s,src);gl.compileShader(s);return s;};
+    const pr=this.prog=gl.createProgram();
+    gl.attachShader(pr,sh(gl.VERTEX_SHADER,'attribute vec3 a_pos;attribute float a_side;attribute vec3 a_col;uniform mat4 u_m;uniform mediump float u_half;varying float v_d;varying vec3 v_col;void main(){v_d=a_side*u_half;v_col=a_col;gl_Position=u_m*vec4(a_pos,1.0);}'));
+    gl.attachShader(pr,sh(gl.FRAGMENT_SHADER,'precision mediump float;uniform float u_half;uniform float u_blur;uniform float u_op;varying float v_d;varying vec3 v_col;void main(){float a=clamp((u_half-abs(v_d))/u_blur,0.0,1.0)*u_op;gl_FragColor=vec4(v_col*a,a);}'));
+    gl.linkProgram(pr);if(!gl.getProgramParameter(pr,gl.LINK_STATUS)){console.error('route-tail: '+gl.getProgramInfoLog(pr));return;}
+    this.ok=true;this.buf=gl.createBuffer();
+    this.loc={pos:gl.getAttribLocation(pr,'a_pos'),side:gl.getAttribLocation(pr,'a_side'),col:gl.getAttribLocation(pr,'a_col'),m:gl.getUniformLocation(pr,'u_m'),half:gl.getUniformLocation(pr,'u_half'),blur:gl.getUniformLocation(pr,'u_blur'),op:gl.getUniformLocation(pr,'u_op')};
+  },
+  render(gl,matrix,o){
+    const T=state.T;this.last=null;
+    if(!this.ok||!T||state.exporting||state.view!=='trip'||!$('#routeToggle').checked||this.skjul||!o||!o.modelViewProjectionMatrix)return;
+    const d=clamp(state.progress,0,1)*T.total;if(d<=0)return;
+    const [a,b,f]=locate(T,d),i0=RP.shown;if(i0>a)return;
+    const pts=[],ix=[];for(let i=i0;i<=a;i++){pts.push(T.pts[i]);ix.push(i);}
+    if(f>0&&b>a){pts.push(posAt(T,d));ix.push(a);}
+    if(pts.length<2)return;
+    const tr=map.transform,ws=tr.worldSize,ter=map.terrain,step=segStep(T),orange=[244/255,177/255,62/255];
+    const mc=pts.map(p=>maplibregl.MercatorCoordinate.fromLngLat([p.lon,p.lat])),ox=mc[0].x*ws,oy=mc[0].y*ws;
+    const xy=mc.map(c=>[c.x*ws-ox,c.y*ws-oy]);
+    const zz=pts.map(p=>{if(!ter)return 0;try{return ter.getElevationForLngLatZoom(new maplibregl.LngLat(p.lon,p.lat),tr.tileZoom)+TAIL_LIFT;}catch(e){return 0;}});
+    const rgb={},segCol=k=>{if(!metric)return orange;const c=segColor(T,Math.floor(ix[Math.min(k,ix.length-2)]/step)*step);return rgb[c]||(rgb[c]=rgb01(c));};
+    /* trekantstripe; der fargegruppen skifter, legges punktet inn to ganger så fargen skifter brått som i route-done */
+    const strip=(half,farget)=>{
+      const v=[];
+      for(let k=0;k<pts.length;k++){
+        const p0=xy[Math.max(0,k-1)],p1=xy[Math.min(pts.length-1,k+1)],dx=p1[0]-p0[0],dy=p1[1]-p0[1],L=Math.hypot(dx,dy)||1,nx=-dy/L*half,ny=dx/L*half;
+        const cs=!farget?[orange]:k===0?[segCol(0)]:[segCol(k-1),segCol(k)];
+        for(const c of (cs.length>1&&cs[0]===cs[1]?[cs[0]]:cs))v.push(xy[k][0]+nx,xy[k][1]+ny,zz[k],1,c[0],c[1],c[2],xy[k][0]-nx,xy[k][1]-ny,zz[k],-1,c[0],c[1],c[2]);
+      }
+      return new Float32Array(v);
+    };
+    const M=o.modelViewProjectionMatrix,m=new Float32Array(16);
+    for(let r=0;r<4;r++){for(let c=0;c<4;c++)m[c*4+r]=M[c*4+r];m[12+r]=M[r]*ox+M[4+r]*oy+M[12+r];}
+    const L=this.loc;
+    gl.useProgram(this.prog);gl.uniformMatrix4fv(L.m,false,m);gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+    for(const l of [L.pos,L.side,L.col])gl.enableVertexAttribArray(l);
+    gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
+    if(this.utenDybde)gl.disable(gl.DEPTH_TEST);
+    const draw=(half,blur,op,farget)=>{
+      const data=strip(half,farget);gl.bufferData(gl.ARRAY_BUFFER,data,gl.DYNAMIC_DRAW);
+      gl.vertexAttribPointer(L.pos,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(L.side,1,gl.FLOAT,false,28,12);gl.vertexAttribPointer(L.col,3,gl.FLOAT,false,28,16);
+      gl.uniform1f(L.half,half);gl.uniform1f(L.blur,blur);gl.uniform1f(L.op,op);gl.drawArrays(gl.TRIANGLE_STRIP,0,data.length/7);
+    };
+    const z=tr.zoom;
+    draw(tailWidth(z,8,18)/2,8,0.45,false);
+    draw(tailWidth(z,2.5,5.5)/2,1,1,true);
+    for(const l of [L.pos,L.side,L.col])gl.disableVertexAttribArray(l);
+    gl.depthMask(true);
+    this.last={i0,p:state.progress};
+  }};
 
 /* ---------- cameras ---------- */
 function curCam(){const c=map.getCenter();return {center:[c.lng,c.lat],zoom:map.getZoom(),pitch:map.getPitch(),bearing:map.getBearing()};}
@@ -1869,7 +1930,7 @@ function setView(v){
   if(!styleReady)return;
   const vis=(ids,on)=>ids.forEach(l=>map.setLayoutProperty(l,'visibility',on?'visible':'none'));
   vis(['all-tracks-casing','all-tracks-line','all-tracks-hit'],v==='log');
-  vis(['route-casing','route-glow','route-glow-h','route-line','route-done','route-done-h','route-hit'],v==='trip'&&$('#routeToggle').checked);
+  vis(['route-casing','route-glow','route-line','route-done','route-hit'],v==='trip'&&$('#routeToggle').checked);
   map.setLayoutProperty('obs-heat','visibility',v==='log'&&state.heat?'visible':'none');
   map.setPaintProperty('obs-circle','circle-opacity',v==='log'?.95:.5);
   map.setPaintProperty('obs-circle','circle-stroke-opacity',v==='log'?1:.5);
@@ -1880,7 +1941,7 @@ function showLog(){
   setPlaying(false);closePoi();stopAdd();
   state.trip=null;state.T=null;state.pois=[];
   poiMarkers.forEach(m=>m.remove());poiMarkers=[];if(posMarker)posMarker.remove();
-  if(styleReady){map.getSource('route').setData(EMPTY);RP.sent++;map.getSource('route-done').setData(EMPTY);map.getSource('route-head').setData(EMPTY);}
+  if(styleReady){map.getSource('route').setData(EMPTY);RP.sent++;map.getSource('route-done').setData(EMPTY);}
   setView('log');renderLog();updateTrackSource();fitLog();
 }
 async function openTrip(id){
@@ -2594,7 +2655,7 @@ function bindUI(){
   $$('#lights button').forEach(b=>b.addEventListener('click',()=>applyLight(b.dataset.light)));
   $('#exag').addEventListener('input',e=>{state.exag=+e.target.value;$('#exagVal').textContent=nf1.format(state.exag)+'×';if(state.terrainOn)map.setTerrain({source:'dem',exaggeration:state.exag});});
   $('#hsToggle').addEventListener('change',e=>map.setLayoutProperty('hillshade','visibility',e.target.checked?'visible':'none'));
-  $('#routeToggle').addEventListener('change',e=>{for(const l of ['route-casing','route-glow','route-glow-h','route-line','route-done','route-done-h'])map.setLayoutProperty(l,'visibility',e.target.checked?'visible':'none');});
+  $('#routeToggle').addEventListener('change',e=>{for(const l of ['route-casing','route-glow','route-line','route-done'])map.setLayoutProperty(l,'visibility',e.target.checked?'visible':'none');});
   $('#poiToggle').addEventListener('change',renderPoiMarkers);
   $('#otherObsToggle').addEventListener('change',updateObsSource);
   $('#colorMode').addEventListener('change',e=>{state.colorMode=e.target.value;buildMetricExpr();if(state.colorMode!=='progress'&&!metricExpr)toast('Turen har ikke data for denne fargen.');paintRoute(state.progress,true);});
