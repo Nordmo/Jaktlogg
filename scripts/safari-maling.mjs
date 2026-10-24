@@ -126,9 +126,14 @@ try {
   for (const modus of ['3D', '2D']) resultat.gren[modus] = await g.exa(SPILL, [modus]);
   // AK4: tre steder etter stigning (flatt, bratt opp, bratt ned), mellom 10 % og 90 % av turen.
   const grad = await g.ex('const T=state.T,g=T.grade||[],v=[];for(let i=Math.floor(T.n*.1);i<T.n*.9;i+=5)v.push([i,g[i]||0]);return v.map(([i,x])=>[T.cum[i]/T.total,x]);');
-  const flat = [...grad].sort((x, y) => Math.abs(x[1]) - Math.abs(y[1]))[0][0], opp = [...grad].sort((x, y) => y[1] - x[1])[0][0], ned = [...grad].sort((x, y) => x[1] - y[1])[0][0];
+  // Prøver opptil åtte kandidater per type, til skjøten synes (bredde > 0 på begge sider).
+  const kand = f => [...grad].sort(f).slice(0, 8).map(x => x[0]);
   resultat.gren.skjot = [];
-  for (const [navn, p] of [['flatt', flat], ['opp', opp], ['ned', ned]]) { const r = await g.exa(SKJOT, [p]); lagre(`AK4-skjot-${navn}.png`, r.png); delete r.png; resultat.gren.skjot.push({ navn, ...r }); }
+  for (const [navn, ps] of [['flatt', kand((x, y) => Math.abs(x[1]) - Math.abs(y[1]))], ['opp', kand((x, y) => y[1] - x[1])], ['ned', kand((x, y) => x[1] - y[1])]]) {
+    let r = null;
+    for (const p of ps) { r = await g.exa(SKJOT, [p]); if (r.breddeDone > 0 && r.breddeHale > 0) break; }
+    lagre(`AK4-skjot-${navn}.png`, r.png); delete r.png; resultat.gren.skjot.push({ navn, ...r });
+  }
   resultat.gren.bak = [];
   for (const p of SPOTS) { const r = await g.exa(BAK, [p]); for (const k of ['R', 'X', 'U']) { lagre(`AK5-${p}-${{ R: 'fasit', X: 'hale', U: 'uten-dybde' }[k]}.png`, r[k]); delete r[k]; } resultat.gren.bak.push(r); }
   await g.slutt();

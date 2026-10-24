@@ -1150,7 +1150,7 @@ function buildMetricExpr(){
 /* Gått rute: 'route-done' (GeoJSON, lang, oppdateres hvert RP.S-punkt) og halen 'route-tail' fra der route-done er
    ferdig tegnet (RP.shown) og fram til markøren, tegnet i hvert bilde. Halen er et custom layer og ikke en GeoJSON-kilde:
    i 3D står setData i kø bak terrengflisene i workerne (sekunder i Safari), så en GeoJSON-hale henger etter markøren. */
-const RP={B:-1,shown:0,sent:0,done:0,S:50,lastP:0,confB:-1,confAt:0};
+const RP={B:-1,shown:0,sent:0,done:0,S:50,lastP:0,confB:-1,confAt:0,endAt:0};
 function resetRoutePaint(){RP.B=-1;RP.shown=0;RP.confB=-1;RP.lastP=0;RP.S=state.T?Math.max(30,Math.ceil(state.T.n/60)):50;}
 function hookRoutePaint(){
   const src=map.getSource('route-done');
@@ -1160,10 +1160,22 @@ function hookRoutePaint(){
   map.on('sourcedata',e=>{if(e.sourceId==='route-done')checkRouteShown();});
 }
 function checkRouteShown(){
-  /* halen flyttes først når hoveddelen faktisk er tegnet (eller etter 0,3 s om kameraet laster nye fliser) */
+  /* halen starter der hoveddelen faktisk er tegnet: hele veien når route-done er lastet, ellers ved enden som er tegnet nå
+     (lest høyst hvert 0,1 s). Ingen tidsreserve: da blir det hull mens kameraet laster fliser i 3D. */
   if(RP.confB<0||RP.confB===RP.shown||RP.done<RP.sent)return;
-  if(!map.isSourceLoaded('route-done')&&performance.now()-RP.confAt<300)return;
-  RP.shown=RP.confB;setHead();
+  if(map.isSourceLoaded('route-done')){RP.shown=RP.confB;setHead();return;}
+  const now=performance.now();if(now-RP.endAt<100)return;RP.endAt=now;
+  const e=doneDrawnEnd(RP.shown,RP.confB);if(e>RP.shown){RP.shown=e;setHead();}
+}
+/* hvor langt route-done er tegnet sammenhengende fra punkt lo (høyst hi). Bitene er klippet ved flisgrensene, og en flis
+   midt imellom kan fortsatt ha gamle data, så bitene settes sammen fra lo og ikke bare den høyeste enden. */
+function doneDrawnEnd(lo,hi){
+  const T=state.T,a=Math.max(0,lo-RP.S),iv=[];
+  const naer=e=>{const k=Math.cos(e[1]*RAD);let b=Infinity,bi=-1;for(let i=a;i<=hi;i++){const dx=(T.pts[i].lon-e[0])*k,dy=T.pts[i].lat-e[1],q=dx*dx+dy*dy;if(q<b){b=q;bi=i;}}return Math.sqrt(b)*111320<5?bi:-1;};
+  for(const f of map.querySourceFeatures('route-done')){const g=f.geometry,ls=g.type==='LineString'?[g.coordinates]:g.type==='MultiLineString'?g.coordinates:[];
+    for(const c of ls){const s=naer(c[0]),e=naer(c[c.length-1]);if(s>=0&&e>=0)iv.push([Math.min(s,e),Math.max(s,e)]);}}
+  iv.sort((x,y)=>x[0]-y[0]);let cur=lo;for(const [s,e] of iv)if(s<=cur+1)cur=Math.max(cur,e);
+  return cur-1;
 }
 /* fargen i faste grupper på segStep punkter (gruppen som starter i punkt g), felles for route-done og halen */
 const segStep=T=>Math.max(1,Math.ceil(T.n/220));
@@ -1206,7 +1218,9 @@ function paintRoute(p,force){
    - Punktene ligger relativt til første punkt, og forskyvningen legges inn i matrisen i Float64, ellers hopper
      halen ved høy zoom (Float32 er for grovt for verdenspiksler).
    Bredden er i verdenspiksler, så den følger terrenget som den draperte route-done. */
-const TAIL_LIFT=0.5;
+/* Halen ligger 0,5 m under terrengnettet, og dybden forskyves mot kameraet med polygonOffset. Da skjules den bak rygger
+   der sikten går langs bakken, uten å forsvinne i nettet der den synes (målt i Safari på Grunnfjorden, AK5). */
+const TAIL_LIFT=-0.5,TAIL_OFFSET=[-2,-4];
 const tailWidth=(z,a,b)=>z<=10?a:z>=16?b:a+(b-a)*(z-10)/6;
 const TAIL={id:'route-tail',type:'custom',renderingMode:'3d',
   onAdd(m,gl){
@@ -1229,9 +1243,15 @@ const TAIL={id:'route-tail',type:'custom',renderingMode:'3d',
     const tr=map.transform,ws=tr.worldSize,ter=map.terrain,step=segStep(T),orange=[244/255,177/255,62/255];
     const mc=pts.map(p=>maplibregl.MercatorCoordinate.fromLngLat([p.lon,p.lat])),ox=mc[0].x*ws,oy=mc[0].y*ws;
     const xy=mc.map(c=>[c.x*ws-ox,c.y*ws-oy]);
-    const zz=pts.map(p=>{if(!ter)return 0;try{return ter.getElevationForLngLatZoom(new maplibregl.LngLat(p.lon,p.lat),tr.tileZoom)+TAIL_LIFT;}catch(e){return 0;}});
+    /* høyden i hvert punkt (verdenspiksler) fra den terrengflisen som faktisk er tegnet der (fjerne fliser har grovere nett).
+       Én høyde per punkt på tvers av stripa: høyde per hjørne ga dårligere skjuling bak rygger (målt i Safari, AK5). */
+    const tt=ter?ter.sourceCache.getRenderableTiles():[],ext=8192;
+    const hoyde=(wx,wy)=>{if(!ter)return 0;const mx=wx/ws,my=wy/ws;let best=null;
+      for(const t of tt){const c=t.tileID.canonical,n=2**c.z,x=mx*n-c.x,y=my*n-c.y;if(x>=0&&x<1&&y>=0&&y<1&&(!best||c.z>best.z))best={id:t.tileID,z:c.z,x,y};}
+      try{return (best?ter.getElevation(best.id,best.x*ext,best.y*ext,ext):ter.getElevationForLngLatZoom(new maplibregl.MercatorCoordinate(mx,my).toLngLat(),tr.tileZoom))+TAIL_LIFT;}catch(e){return 0;}};
     const rgb={},segCol=k=>{if(!metric)return orange;const c=segColor(T,Math.floor(ix[Math.min(k,ix.length-2)]/step)*step);return rgb[c]||(rgb[c]=rgb01(c));};
     /* trekantstripe; der fargegruppen skifter, legges punktet inn to ganger så fargen skifter brått som i route-done */
+    const zz=xy.map(p=>hoyde(p[0]+ox,p[1]+oy));
     const strip=(half,farget)=>{
       const v=[];
       for(let k=0;k<pts.length;k++){
@@ -1246,18 +1266,20 @@ const TAIL={id:'route-tail',type:'custom',renderingMode:'3d',
     const L=this.loc;
     gl.useProgram(this.prog);gl.uniformMatrix4fv(L.m,false,m);gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
     for(const l of [L.pos,L.side,L.col])gl.enableVertexAttribArray(l);
-    gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);
+    gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
     if(this.utenDybde)gl.disable(gl.DEPTH_TEST);
+    gl.enable(gl.POLYGON_OFFSET_FILL);gl.polygonOffset(TAIL_OFFSET[0],TAIL_OFFSET[1]);
     const draw=(half,blur,op,farget)=>{
       const data=strip(half,farget);gl.bufferData(gl.ARRAY_BUFFER,data,gl.DYNAMIC_DRAW);
       gl.vertexAttribPointer(L.pos,3,gl.FLOAT,false,28,0);gl.vertexAttribPointer(L.side,1,gl.FLOAT,false,28,12);gl.vertexAttribPointer(L.col,3,gl.FLOAT,false,28,16);
       gl.uniform1f(L.half,half);gl.uniform1f(L.blur,blur);gl.uniform1f(L.op,op);gl.drawArrays(gl.TRIANGLE_STRIP,0,data.length/7);
     };
-    const z=tr.zoom;
-    draw(tailWidth(z,8,18)/2,8,0.45,false);
-    draw(tailWidth(z,2.5,5.5)/2,1,1,true);
+    /* som MapLibres linjeshader: halv bredde + 0,5/dpr til kantutjevning, og uskarphet blur + 1/dpr */
+    const z=tr.zoom,dpr=map.getPixelRatio(),aa=0.5/dpr;
+    draw(tailWidth(z,8,18)/2+aa,8+1/dpr,0.45,false);
+    draw(tailWidth(z,2.5,5.5)/2+aa,1/dpr,1,true);
     for(const l of [L.pos,L.side,L.col])gl.disableVertexAttribArray(l);
-    gl.depthMask(true);
+    gl.disable(gl.POLYGON_OFFSET_FILL);
     this.last={i0,p:state.progress};
   }};
 
