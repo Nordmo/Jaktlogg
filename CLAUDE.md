@@ -32,6 +32,8 @@ Rutinen: Martin godkjenner specen (`Status: godkjent`) og kjører `/ship docs/sp
 - `route-tail` bruker interne deler av MapLibre 4.7.1, som `map._elevationFreeze`:
   - Matrisen er `modelViewProjectionMatrix` (tredje argument til `render`), med x og y i verdenspiksler og z i meter. `customLayerMatrix` mangler forskyvningen for terrenghøyden i kartets senter og gir feil høyde.
   - Laget må ligge rett før `obs-circle`, etter alle draperte lag (`line`, `fill`, `raster`, `hillshade`, `background`). Ligger det midt blant dem, tegnes terrenget to ganger per bilde (målt 29,5 → 27,5 bilder/s i Safari).
+  - Skjulingen bak terreng gjøres i fragmentshaderen mot `map.terrain._fboDepthTexture`, ikke med vanlig dybdetest. Teksturen har NDC-z pakket i RGBA av `pack()` i MapLibres `terrainDepth`-shader. Pakk ut med `dot(farge, (1/256³, 1/256², 1/256, 1))`, ikke som `depthAtPoint` (gir 255/256 av verdien, ca. 12 % for kort avstand). Avstand fra kameraet er `projectionMatrix[14]/(ndc+projectionMatrix[10])`, samme enhet som `gl_Position.w`.
+  - Høyden regnes ut som terrengnettet: flisen som tegnes (`terrain.sourceCache.getRenderableTiles()`), `terrain.meshSize` ruter, trekanter langs diagonalen, og `terrain.getElevation`.
   - Den bruker også `map.transform.worldSize`, `map.transform.zoom` og `map.terrain.getElevationForLngLatZoom`.
   - Når MapLibre oppgraderes, må halen testes på nytt i Safari med `node scripts/safari-maling.mjs <spor.gpx>` (AK1–AK5 i specen), i tillegg til kamera og terreng.
 - Gi aldri `.poi-mk` eller andre markører `position` i CSS. Det overstyrer MapLibres plassering.
