@@ -1170,10 +1170,11 @@ function checkRouteShown(){
 /* hvor langt route-done er tegnet sammenhengende fra punkt lo (høyst hi). Bitene er klippet ved flisgrensene, og en flis
    midt imellom kan fortsatt ha gamle data, så bitene settes sammen fra lo og ikke bare den høyeste enden. */
 function doneDrawnEnd(lo,hi){
+  /* biter som starter før søkevinduet (for eksempel ved turens start) regnes fra vinduets start */
   const T=state.T,a=Math.max(0,lo-RP.S),iv=[];
   const naer=e=>{const k=Math.cos(e[1]*RAD);let b=Infinity,bi=-1;for(let i=a;i<=hi;i++){const dx=(T.pts[i].lon-e[0])*k,dy=T.pts[i].lat-e[1],q=dx*dx+dy*dy;if(q<b){b=q;bi=i;}}return Math.sqrt(b)*111320<5?bi:-1;};
   for(const f of map.querySourceFeatures('route-done')){const g=f.geometry,ls=g.type==='LineString'?[g.coordinates]:g.type==='MultiLineString'?g.coordinates:[];
-    for(const c of ls){const s=naer(c[0]),e=naer(c[c.length-1]);if(s>=0&&e>=0)iv.push([Math.min(s,e),Math.max(s,e)]);}}
+    for(const c of ls){const s=naer(c[0]),e=naer(c[c.length-1]);if(e>=0)iv.push([s>=0?Math.min(s,e):a,Math.max(s,e)]);}}
   iv.sort((x,y)=>x[0]-y[0]);let cur=lo;for(const [s,e] of iv)if(s<=cur+1)cur=Math.max(cur,e);
   return cur-1;
 }

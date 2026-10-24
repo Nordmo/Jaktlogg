@@ -199,8 +199,9 @@ test('AK8: halen har samme farge som hele ruten for høyde, puls og fart, og sam
     await page.evaluate(() => { const el = document.querySelector('#colorMode'); el.value = 'progress'; el.dispatchEvent(new Event('change')); });
     await kalibrer(page, 0.5);
     await page.evaluate(() => new Promise(res => { let n = 0; const paa = () => { if (++n >= 12) { map.off('render', paa); setPlaying(false); res(); } }; map.on('render', paa); setPlaying(true); }));
-    // Ett zoomtrinn ut, så både halen og route-done er i bildet (halen kan være opptil RP.S punkter lang).
-    await page.evaluate(() => { state.camDirty = false; map.jumpTo({ zoom: map.getZoom() - 1 }); });
+    // To zoomtrinn ut, så både halen og route-done er i bildet (halen kan være opptil RP.S punkter lang; med ett trinn
+    // var bare ca. 32 punkter bak markøren synlige). Endret med Martins ja.
+    await page.evaluate(() => { state.camDirty = false; map.jumpTo({ zoom: map.getZoom() - 2 }); });
     await ro(page);
     const b = await page.evaluate(() => {
       const H = window.__h, T = state.T; H.les();
