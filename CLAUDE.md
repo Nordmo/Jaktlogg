@@ -27,7 +27,15 @@ Rutinen: Martin godkjenner specen (`Status: godkjent`) og kjører `/ship docs/sp
 ## Fallgruver (ikke "rydd" disse bort)
 
 - `map._elevationFreeze=false` før `jumpTo` og på `moveend` omgår en feil i MapLibre 4. Uten den sikter kameraet mot feil høyde og havner inne i fjellet.
-- Gått rute tegnes med to kilder: `route-done` (lang, sjelden oppdatert) og `route-head` (kort hale, hver frame). Ikke bytt til line-gradient/line-progress (feil på svingete turer), og ikke slå dem sammen (henger etter markøren).
+- Gått rute tegnes i to deler: GeoJSON-kilden `route-done` (lang, oppdateres hvert `RP.S`-punkt) og halen `route-tail` fra `RP.shown` til markøren, som er et custom layer (WebGL) og tegnes i hvert bilde. Ikke bytt til line-gradient/line-progress (feil på svingete turer), og ikke slå dem sammen (henger etter markøren).
+- Ikke flytt halen tilbake til en GeoJSON-kilde. I 3D står hver `setData` i kø bak terrengflisene i workerne, i Safari i flere sekunder (målt i `docs/specs/rute-hale-webgl.md`). Ikke legg halen som et lerret over kartet heller: da synes den gjennom fjellrygger.
+- `route-tail` bruker interne deler av MapLibre 4.7.1, som `map._elevationFreeze`:
+  - Matrisen er `modelViewProjectionMatrix` (tredje argument til `render`), med x og y i verdenspiksler og z i meter. `customLayerMatrix` mangler forskyvningen for terrenghøyden i kartets senter og gir feil høyde.
+  - Laget må ligge rett før `obs-circle`, etter alle draperte lag (`line`, `fill`, `raster`, `hillshade`, `background`). Ligger det midt blant dem, tegnes terrenget to ganger per bilde (målt 29,5 → 27,5 bilder/s i Safari).
+  - Skjulingen bak terreng gjøres i fragmentshaderen mot `map.terrain._fboDepthTexture`, ikke med vanlig dybdetest. Teksturen har NDC-z pakket i RGBA av `pack()` i MapLibres `terrainDepth`-shader. Pakk ut med `dot(farge, (1/256³, 1/256², 1/256, 1))`, ikke som `depthAtPoint` (gir 255/256 av verdien, ca. 12 % for kort avstand). Avstand fra kameraet er `projectionMatrix[14]/(ndc+projectionMatrix[10])`, samme enhet som `gl_Position.w`.
+  - Høyden regnes ut som terrengnettet: flisen som tegnes (`terrain.sourceCache.getRenderableTiles()`), `terrain.meshSize` ruter, trekanter langs diagonalen, og `terrain.getElevation`.
+  - Den bruker også `map.transform.worldSize`, `map.transform.zoom` og `map.terrain.getElevationForLngLatZoom`.
+  - Når MapLibre oppgraderes, må halen testes på nytt i Safari med `node scripts/safari-maling.mjs <spor.gpx>` (AK1–AK5 i specen), i tillegg til kamera og terreng.
 - Gi aldri `.poi-mk` eller andre markører `position` i CSS. Det overstyrer MapLibres plassering.
 - Nye tabeller trenger egne `grant`-linjer og RLS-policyer, fordi "Automatically expose new tables" er av i Supabase.
 - Bruk alltid plassholderen `din@epost.no` i SQL-filene, aldri ekte e-postadresser.
