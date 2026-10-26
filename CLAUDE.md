@@ -52,3 +52,9 @@ Rutinen: Martin godkjenner specen (`Status: godkjent`) og kjører `/ship docs/sp
 ## Plan
 
 `docs/agent-loop.md` bygges fase for fase. Ikke start en fase før brukeren ber om det.
+
+   ## Tekst og UI-elementer
+   - Ingen eyebrow-etiketter over overskrifter med mindre de bærer informasjon brukeren trenger.
+   - Ingen dekorativ tekst: ingen taglines, undertekster eller hjelpetekst som gjentar det overskriften eller elementet allerede sier.
+   - Før du legger til et element: kan det fjernes uten at brukeren mister noe? Da fjernes det.
+   - Skriv hele, naturlige setninger. Aldri staccato-fragmenter som "Raskt. Enkelt. Trygt."
