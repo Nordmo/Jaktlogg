@@ -16,6 +16,27 @@ Rutinen: Martin godkjenner specen (`Status: godkjent`) og kjører `/ship docs/sp
 
 `/ship docs/specs/<funksjon>.md` låser akseptansetestene, implementerer, kaller `reviewer` (Sonnet, maks tre runder), kjører `scripts/escalation-check.js` mot diffen, åpner PR og slår på auto-merge. GitHub merger når CI er grønn, og Pages publiseres fra `main` bare etter grønne sjekker (`deploy`-jobben i `check.yml`). `scripts/ntfy.sh` varsler Martin; emnet ligger i `.ntfy-topic` (i `.gitignore`) og i secret `NTFY_TOPIC`, aldri i en fil som committes.
 
+## Tre spor
+
+Hver oppgave går på ett av tre spor:
+
+- **Direkte**: endringen gjøres rett på en egen branch.
+- **Mini-spec**: før koden skrives, står det kort hva som skal gjøres og hvordan vi ser at det er ferdig.
+- **Full loop**: Martin godkjenner en spec i `docs/specs/`, og `/ship` kjører resten.
+
+Sjekkliste for full loop. Ett ja betyr full loop.
+
+- Endringen rører SQL, RLS, innlogging, secrets eller Edge-funksjoner.
+- Andres data kan bli synlige, eller egne data kan forsvinne.
+- En låst test eller et akseptansekriterium må endres.
+- Manuelle steg må gjøres i bestemt rekkefølge rundt merge.
+- `git revert` er ikke nok til å angre endringen.
+- Hva «ferdig» betyr, kan ikke sies i to-tre setninger.
+
+Får du en oppgave på direkte- eller mini-sporet, og den viser seg å treffe sjekklista, skal du stoppe og si fra før du endrer noe.
+
+Minimum på alle spor: egen branch, grønn `npm run check` og PR med grønn CI.
+
 ## Arkitektur
 
 - Alt er `index.html`: CSS, markup og ett stort `<script>` uten moduler, delt i seksjoner merket `/* ---------- navn ---------- */`. Koden er tett med énlinjers funksjoner; følg den stilen.
