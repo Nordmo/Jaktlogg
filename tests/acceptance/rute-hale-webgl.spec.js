@@ -92,6 +92,20 @@ async function kalibrer(page, p) {
   await ovenfra(page, p);
   await page.evaluate(v => { state.duration = v; }, v);
 }
+// Fast fart i skjermpiksler per sekund (AK7 og AK9), ikke sporpunkter per bilde. Kameraet ligger ca. 0,2 s etter markøren
+// i top-modus, så etterslepet blir høyst ca. 144 px på alle maskiner, og markøren holder seg innenfor lerretet (920x438).
+// Med kalibrer() gikk markøren ut over kanten ved 60 bilder/s (se Notater i specen). Endret med Martins ja.
+const PX_S = 720;
+async function fastFart(page, p, { foerOppdatering = false } = {}) {
+  await ovenfra(page, p);
+  // Start ca. 10 punkter før neste oppdatering av route-done, så skjøten ved RP.shown krysses under målingen.
+  if (foerOppdatering) await ovenfra(page, await page.evaluate(() => state.T.cum[RP.B + RP.S - 10] / state.T.total));
+  await page.evaluate(pxs => {
+    const T = state.T, a = locate(T, state.progress * T.total)[0], H = window.__h; let px = 0;
+    for (let i = a; i < a + 40; i++) { const q = H.px(i), r = H.px(i + 1); px += Math.hypot(r.x - q.x, r.y - q.y); }
+    state.duration = T.total * (px / (T.cum[a + 40] - T.cum[a])) / pxs;
+  }, PX_S);
+}
 const harTail = page => page.evaluate(() => !!map.getLayer('route-tail'));
 
 /* ---------- AK1–AK5: Safari-målingen finnes og måler det specen sier ---------- */
@@ -145,7 +159,7 @@ test('AK6: route-head og lagene *-h finnes ikke, og ingen GeoJSON-kilde får set
 test('AK7: halen slutter ved markøren og starter ved enden av route-done i hvert bilde', async ({ page }) => {
   const errors = await start(page);
   expect(await harTail(page), 'laget route-tail mangler').toBe(true);
-  await kalibrer(page, 0.2);
+  await fastFart(page, 0.2, { foerOppdatering: true });
   const r = await page.evaluate(() => new Promise(res => {
     const H = window.__h, gap = [], foran = [], hull = [];
     const paa = () => {
@@ -222,7 +236,7 @@ test('AK8: halen har samme farge som hele ruten for høyde, puls og fart, og sam
 test('AK9: på pause er gapet 0, og spoling gir ingen gamle eller manglende biter', async ({ page }) => {
   const errors = await start(page);
   expect(await harTail(page), 'laget route-tail mangler').toBe(true);
-  await kalibrer(page, 0.6);
+  await fastFart(page, 0.6);
   await page.evaluate(() => new Promise(res => { let n = 0; const paa = () => { if (++n >= 10) { map.off('render', paa); setPlaying(false); res(); } }; map.on('render', paa); setPlaying(true); }));
   await page.evaluate(() => { state.camDirty = false; });
   await ro(page);

@@ -1,7 +1,7 @@
 # Spec: Halen tegnes med WebGL, uten workerne
 
 Status: godkjent
-Godkjent av: Martin, 2026-10-24
+Godkjent av: Martin, 2026-10-24 (endringen av AK7 og AK9: Martin, 2026-10-26)
 
 ## Mål
 
@@ -63,6 +63,54 @@ AK1–AK5 måles i Safari med `scripts/safari-maling.mjs` på Grunnfjorden, med 
   - AK5: med færre enn 100 piksler bak ryggen er prosenten ikke stabil. I runde 1 hadde stedene ved 77 % og 78 % bare ca. 60 piksler (halen på baksida av ryggen ses nesten fra siden og blir tynn), og 12 feilaktige piksler ga 77 % og 80 % skjult. Ved nesten lik toleranse ga samme sted 80 % én gang og 0 % neste. Derfor er grensen 75 % der det er færre enn 100 piksler, og Martin godkjenner skjermbildene.
   - AK4: runde 1 ga bredde route-done / hale 5 / 11 px (flatt), 10 / 14 px (opp) og 12 / 4 px (ned). Breddeforskjellen kommer mest av gløden, som er sterkere og litt taggete på halen enn på route-done. Det kan tas i en egen spec senere.
 - Fallgruven om interne deler av MapLibre i `CLAUDE.md` skrives i samme PR (AK14), fordi en ucommittet endring utenfor specen stopper `/ship`.
+
+### AK7 og AK9 målte kameraet, ikke halen (26.10.2026)
+
+AK7 feilet 5 av 5 ganger lokalt på gap-kravet, også på `main`, men besto i CI på første forsøk. Årsaken er testen, ikke halen. Det er vist med en probe utenfor repoet, med samme oppstart som AK7:
+
+- Gapet er 0 i alle bilder der markøren er innenfor lerretet. Det blir over 0 i samme bilde som markøren går over toppkanten (y = −4), og følger deretter hvor langt utenfor markøren er. `route-tail` tegnes i hvert bilde, fra `RP.shown` fram til markøren.
+- `kalibrer()` setter farten til ca. 2 sporpunkter per bilde. Kameraet i `top`-modus ligger ca. 0,2 s etter markøren, så etterslepet i piksler vokser med bildefrekvensen. Med 16,7 ms per bilde (denne Macen) går markøren ut over toppkanten av lerretet (920 × 438 px). Med prosessoren strupet 4 ganger (ca. 30 ms per bilde, nær CI) holder den seg innenfor, og AK7 består 3 av 3.
+- AK9 har samme svakhet. Etter 10 bilder og stopp står markøren 2 px utenfor lerretet (uten struping). Pausesjekken består bare fordi `H.naer` leser 2 px rundt markøren.
+
+**Endring (bare AK7 og AK9):** AK7 og AK9 setter farten i skjermpiksler per sekund i stedet for sporpunkter per bilde. Farten er **720 px/s**, regnet ut fra pikslene mellom sporpunktene der målingen starter. AK7 starter i tillegg 10 punkter før neste oppdatering av `route-done` (punkt `RP.B + RP.S − 10`, etter at kameraet er satt ovenfra ved 0,2), så skjøten ved `RP.shown` krysses under målingen. Uten dette sto `RP.shown` fast hele målingen, og skjøten ble aldri målt.
+
+Kravene står uendret. I AK7 gjelder fortsatt gap ≤ 4 px i minst 95 % av bildene, ingen oransje foran markøren, og høyst 1 punkt uten oransje mellom `route-done` og markøren, målt over 30 bilder. I AK9 gjelder fortsatt gap 0 og ingen oransje foran markøren på pause, og ingen gamle eller manglende biter etter spoling til 0,3 og 0,45, etter 10 bilder fra 0,6. `kalibrer()` og AK6, AK8 og AK12, som bruker den, endres ikke.
+
+Hvorfor 720 px/s (AK7, målt i proben):
+
+| Fart | Etterslep, teoretisk høyst | Minste margin til kanten (16,7 / 30 ms per bilde) | Gap når halen henger ett bilde etter (16,7 / 30 ms) |
+|---|---|---|---|
+| 480 px/s | 96 px | 145 / 142 px | 4–5 / 11 px (fanges så vidt) |
+| **720 px/s** | **144 px** | **107 / 103 px** | **8 / 18 px** |
+| 960 px/s | 192 px | 70 / 64 px | 11–12 / 25 px |
+
+720 px/s gir over 100 px margin til kanten på begge bildefrekvensene, mer enn de 40 px foran markøren som «oransje foran markøren» leser. En hale som henger ett bilde etter gir 8 px gap ved 60 bilder/s, dobbelt så mye som grensen på 4 px, så testen fanger den fortsatt. Lavere fart gir mer margin, men en treg hale slipper nesten gjennom. Med 720 px/s står markøren i AK9 minst 148 / 130 px fra kanten under avspillingen og 151 / 138 px etter stopp (16,7 / 30 ms per bilde).
+
+Skjøten i AK7 krysses: med start i punkt 855 (`RP.B` 798, `RP.S` 67) går `RP.shown` fra 798 til 865 i bilde 15 av 30 uten struping, og i bilde 6 med struping. Gapet er 0 i alle 30 bildene, også i bildet der skjøten flytter seg.
+
+Bevis, med kopier av den nye AK7 og AK9 utenfor repoet:
+
+- 5 av 5 bestått for begge uten struping, og 5 av 5 for begge med prosessoren strupet 4 ganger (`Emulation.setCPUThrottlingRate`).
+- Motprøve: halen tegnes med markørens forrige posisjon, ett bilde etter under avspilling, og blir stående ett steg bak på pause. Da feiler begge, både uten og med struping. AK7 feiler på gap (8–18 px uten struping og 18–38 px med, ingen bilder ≤ 4 px). AK9 feiler på pause med gap 8 px.
+
+Samme svakhet i testene som ikke endres. Minste avstand fra markøren til lerretskanten, uten struping / strupet 4 ganger:
+
+| Test | Under avspilling | Etter stopp | Påvirker resultatet? |
+|---|---|---|---|
+| AK6 (40 bilder) | −124 / 48 px | – | Nei, teller `setData` |
+| AK8 ele (12 bilder) | −13 / 99 px | −1 / 105 px | Ja, delvis: bare synlige punkter sjekkes |
+| AK8 hr | −99 / −52 px | −84 / −26 px | Ja, delvis |
+| AK8 speed | −102 / −37 px | −86 / −12 px | Ja, delvis |
+| AK8 bredde (før zoom ut) | −79 / −54 px | −65 / −41 px | Nei, zoomer to trinn ut før målingen |
+| AK12 (6 bilder) | 63 / 140 px | – | Nei, teller tegnekall |
+
+AK8 består i dag, men sjekker bare den delen av halen som er synlig. Den kan rettes på samme måte i en egen endring.
+
+Slik går endringen gjennom `/ship`:
+
+- Endringen er bare i testene. Det er ingen ny kode i appen, og alle testene består allerede når de låses, også de nye AK7 og AK9. Det er ventet, og testene skal ikke skrives om for å feile.
+- AK1–AK5 måles ikke i Safari på nytt, fordi appen ikke endres.
+- Eskaleringssjekken gir exit 1 fordi «Berører» har to avkrysninger. Diffen skal ikke gi andre treff. `/ship` åpner da en utkast-PR, og Martin merger selv.
 
 ### Målinger i Safari: årsaken (24.10.2026, `main`)
 
