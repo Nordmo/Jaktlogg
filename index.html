@@ -73,6 +73,9 @@ button{cursor:pointer}
 /* Stage */
 .stage{grid-area:stage;position:relative;min-height:0;min-width:0;overflow:hidden;background:#05080c}
 #map{position:absolute;inset:0}
+/* langt trykk i kartet åpner veiviseren: ingen tekstmarkering eller kopier-meny på iPhone */
+#map,#map .maplibregl-canvas{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.fps{position:absolute;left:184px;top:14px;z-index:4;pointer-events:none;padding:4px 8px;border-radius:7px;background:rgba(8,12,18,.85);font:500 12px/1.3 var(--f-mono);color:var(--text)}
 #map.exporting{position:fixed;inset:auto;left:0;top:0;z-index:40}
 .stage.adding #map .maplibregl-canvas{cursor:crosshair}
 
@@ -240,7 +243,7 @@ textarea.inp{min-height:76px;resize:vertical}
 #wxChart{width:100%;height:92px;display:block}
 
 /* Timeline */
-.tl{grid-area:tl;border-top:1px solid var(--line);background:var(--panel);padding:10px max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));display:grid;gap:8px;min-width:0}
+.tl{grid-area:tl;border-top:1px solid var(--line);background:var(--panel);padding:10px max(16px,env(safe-area-inset-right,0px)) calc(12px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:grid;gap:8px;min-width:0}
 .tl-head{display:flex;align-items:center;gap:12px;min-width:0}
 .play{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;border:0;background:var(--amber);color:var(--amber-ink);flex:none}
 .play svg{width:18px;height:18px}
@@ -270,7 +273,7 @@ textarea.inp{min-height:76px;resize:vertical}
 /* Presentation mode */
 .present .app{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr);grid-template-areas:"stage"}
 .present .top,.present .side{display:none}
-.present .tl{position:fixed;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:9;border:1px solid var(--line);border-radius:14px;background:var(--glass);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.present .tl{position:fixed;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:9;padding-bottom:12px;border:1px solid var(--line);border-radius:14px;background:var(--glass);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
 .present .charts{grid-template-columns:1fr}
 .present .chart:not(:first-child){display:none}
 .present .chart{border:0;padding:0;background:transparent}
@@ -282,7 +285,7 @@ textarea.inp{min-height:76px;resize:vertical}
 
 /* Modals */
 .modal{position:fixed;inset:0;z-index:100;display:grid;place-items:center;padding:20px;background:rgba(4,7,11,.82);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-.dialog{width:min(580px,100%);max-height:calc(100vh - 40px);overflow:auto;border-radius:16px;background:var(--panel);border:1px solid var(--line-2);box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.dialog{width:min(580px,100%);max-height:calc(100vh - 40px);max-height:calc(100dvh - 40px - env(safe-area-inset-bottom,0px));overflow:auto;border-radius:16px;background:var(--panel);border:1px solid var(--line-2);box-shadow:0 30px 80px rgba(0,0,0,.6)}
 .dialog.wide{width:min(1120px,100%)}
 .dialog > header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line)}
 .dialog > header h2{margin:0;font:700 26px/1 var(--f-display);letter-spacing:.02em}
@@ -315,7 +318,7 @@ textarea.inp{min-height:76px;resize:vertical}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:130;padding:10px 16px;border-radius:10px;background:var(--raise-2);border:1px solid var(--line-2);font-size:14px;box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:calc(100% - 32px)}
 
 /* Login */
-.auth{position:fixed;inset:0;z-index:110;display:grid;place-items:center;padding:20px;background:radial-gradient(ellipse at 30% 20%,rgba(134,207,228,.08),transparent 60%),rgba(6,9,13,.78);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.auth{position:fixed;inset:0;z-index:110;display:grid;place-items:center;padding:20px;padding-bottom:max(20px,env(safe-area-inset-bottom,0px));background:radial-gradient(ellipse at 30% 20%,rgba(134,207,228,.08),transparent 60%),rgba(6,9,13,.78);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
 .auth form{width:min(400px,100%);display:grid;gap:14px;padding:26px;border-radius:18px;background:var(--panel);border:1px solid var(--line-2);box-shadow:0 30px 80px rgba(0,0,0,.6)}
 .auth h1{margin:0;font:700 34px/1 var(--f-display);letter-spacing:.02em}
 .auth .links{display:flex;flex-direction:column;gap:2px;align-items:flex-start}
@@ -401,6 +404,43 @@ textarea.inp{min-height:76px;resize:vertical}
   .legend{display:none}
 }
 @media (max-width:560px){.readout .ro:nth-child(n+3){display:none}.dur span{display:none}.two,.three{grid-template-columns:1fr}.crumbs .slash,.crumbs b{display:none}}
+/* Telefon (docs/specs/mobil.md). Smal: logoen fører til jaktloggen, og Presenter og Lag video ligger øverst i Tur-fanen. */
+.pane-acts{display:none;gap:8px;flex-wrap:wrap}
+@media (max-width:559.98px){.top{gap:6px}.sep,.crumbs,#presentBtn,#exportBtn,.view-log .brand{display:none!important}.pane-acts{display:flex}}
+/* Lav (liggende telefon): høydeprofilen skjules, så kartet får plass */
+@media (max-height:499px){.charts{display:none}.tl{gap:4px;padding-top:6px;padding-bottom:calc(6px + env(safe-area-inset-bottom,0px))}.rail{max-height:calc(100% - 28px);overflow-y:auto}
+  .auth{padding:8px;overflow:auto}.auth form{padding:14px 18px;gap:8px}.auth h1{font-size:28px}.auth .field{grid-template-columns:80px minmax(0,1fr);align-items:center}}
+/* i skuffen står turene rett under overskriften, så de synes når jaktloggen åpnes */
+@media (max-width:980px){.fps{left:84px}#pane-log>*{order:1}#pane-log>:first-child{order:-3}#tripCount{order:-2}#pane-log>.trips{order:-1}}
+/* Berøringsskjerm: trykkflater på minst 44×44 px, tekst minst 12 px, og felt på 16 px så iPhone ikke zoomer inn.
+   Knappene er 44 px med en usynlig kant på 2 px rundt (::after), så også de runde hjørnene tar imot trykk. Naboene står
+   derfor minst 4 px fra hverandre. Felt, brytere og kartknapper uten kant er 48 px. */
+@media (pointer:coarse){
+  .btn,.btn.small{height:44px;min-width:44px;justify-content:center}
+  .acct,.play,.iconbtn{width:44px;height:44px}
+  .brand,.cam{min-width:44px;min-height:44px;justify-content:center}
+  .seg button{min-width:50px;min-height:44px}
+  .linkbtn,.hint button,.chips button,.chips label{min-height:44px}
+  .tab{min-height:48px}
+  .top .btn,.acct,.brand{flex:none}
+  .btn,.acct,.play,.iconbtn,.brand,.seg button,.cam,.tab,.linkbtn,.hint button,.chips button{position:relative}
+  .btn::after,.acct::after,.play::after,.iconbtn::after,.brand::after,.seg button::after,.cam::after,.tab::after,.linkbtn::after,.hint button::after,.chips button::after,.chips label::after{content:"";position:absolute;inset:-2px}
+  .rail,.tabs,.auth .links{gap:6px}
+  .chips button,.chips label{display:inline-flex;align-items:center}
+  .toggle{min-height:48px}
+  select.sel,input.inp,textarea.inp,.dur select{min-height:48px;font-size:16px}
+  select.sel,.dur select{-webkit-appearance:none;appearance:none;padding-right:30px;background:var(--raise) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%238f9cab' stroke-width='1.8'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E") no-repeat right 10px center}
+  .range input{height:48px}
+  .scrub{height:48px}
+  .scrub>*,.scrub .tick{margin-top:9px}
+  .maplibregl-ctrl-group button{width:48px;height:48px}
+  .maplibregl-ctrl-attrib.maplibregl-compact{min-height:48px;padding-right:48px;border-radius:24px}
+  .maplibregl-ctrl-attrib-button{width:48px;height:48px;border-radius:0;background-position:center}
+  .maplibregl-ctrl-attrib a{display:inline-block;min-height:44px;line-height:44px}
+  .mapbar{right:64px}
+  .eyebrow,.chip,.fact span,.stat span,.poi-row span,.badge,.trip .when,.wx span,.ro span,.scrub .lbls span,.field > span,.sumrow span,.ana-filters .lbl,.kpis span,.acard .foot,.poi-mk i,.cam kbd,.maplibregl-ctrl-attrib{font-size:12px}
+  .acard svg .sn{font-size:12px}
+}
 </style>
 </head>
 <body class="view-log">
@@ -1092,8 +1132,18 @@ function makeStyle(){
     sky:L.sky,
   };
 }
+/* pikseltettheten er høyst 2 (telefoner har 3, og da tegnes ni ganger så mange piksler som ved 1). Eksporten setter
+   sin egen og setter denne tilbake. ?fps viser bilder per sekund i kartet, og ?fps&pr=3 tegner med 3 for å måle forskjellen. */
+const QS=new URLSearchParams(location.search),FPS=QS.has('fps');
+const mapPixelRatio=()=>FPS&&+QS.get('pr')>0?+QS.get('pr'):Math.min(2,devicePixelRatio||1);
+function fpsCounter(){
+  const el=document.createElement('div');el.id='fps';el.className='fps';$('#stage').appendChild(el);
+  let n=0;map.on('render',()=>n++);
+  const vis=()=>{el.textContent=`${n} bilder/s · ${String(map.getPixelRatio()).replace('.',',')}×`;n=0;};vis();setInterval(vis,1000);
+}
 function initMap(){
-  map=new maplibregl.Map({container:'map',style:makeStyle(),center:[19.0,69.64],zoom:10.5,pitch:50,maxPitch:85,preserveDrawingBuffer:true,attributionControl:{compact:true},fadeDuration:150});
+  map=new maplibregl.Map({container:'map',style:makeStyle(),center:[19.0,69.64],zoom:10.5,pitch:50,maxPitch:85,preserveDrawingBuffer:true,pixelRatio:mapPixelRatio(),attributionControl:{compact:true},fadeDuration:150});
+  if(FPS)fpsCounter();
   map.addControl(new maplibregl.NavigationControl({visualizePitch:true}),'top-right');
   const warned={};
   map.on('error',e=>{const id=e.sourceId||(e.source&&e.source.id);if(id&&SRC_LABEL[id]&&!warned[id]){warned[id]=1;toast(`Fikk ikke hentet data fra ${SRC_LABEL[id]}. Sjekk nettforbindelsen.`);}});
@@ -1124,10 +1174,18 @@ function initMap(){
     map.on('mouseleave','obs-circle',()=>map.getCanvas().style.cursor='');
     map.on('moveend',()=>{map._elevationFreeze=false;});
     map.on('click',onMapClick);
-    map.on('contextmenu',e=>{if(state.view==='trip'){e.preventDefault();wizardAt(e.lngLat);}});
-    let lp=null;const lpStop=()=>{clearTimeout(lp);lp=null;};
-    map.on('touchstart',e=>{lpStop();if(state.view!=='trip'||!e.points||e.points.length!==1)return;const ll=e.lngLat;lp=setTimeout(()=>{lp=null;wizardAt(ll);},650);});
+    /* langt trykk: tidsuret åpner veiviseren. Android sender også contextmenu under trykket, og den overses mens en finger
+       er nede, så veiviseren åpnes én gang. */
+    let lp=null,touching=false;const lpStop=()=>{clearTimeout(lp);lp=null;};
+    map.on('contextmenu',e=>{if(state.view==='trip'){e.preventDefault();if(!touching)wizardAt(e.lngLat);}});
+    map.on('touchstart',e=>{lpStop();touching=true;if(state.view!=='trip'||!e.points||e.points.length!==1)return;const ll=e.lngLat;lp=setTimeout(()=>{lp=null;wizardAt(ll);},650);});
     for(const ev of ['touchmove','touchend','touchcancel','movestart'])map.on(ev,lpStop);
+    for(const ev of ['touchend','touchcancel'])map.on(ev,()=>{touching=false;});
+    /* iPhone kan ta fra kartet WebGL-konteksten når appen ligger i bakgrunnen. MapLibre setter opp sine egne lag igjen,
+       men ikke custom layers, så route-tail lager programmet og bufferet på nytt. */
+    map.on('webglcontextrestored',()=>{TAIL.ok=false;TAIL.onAdd(map,map.painter.context.gl);});
+    /* på berøringsskjerm står kildehenvisningen lukket fra start (i-knappen åpner den), som MapLibre gjør etter første drag */
+    if(matchMedia('(pointer: coarse)').matches)map.once('idle',()=>{const a=map.getContainer().querySelector('.maplibregl-ctrl-attrib.maplibregl-compact');if(a){a.removeAttribute('open');a.classList.remove('maplibregl-compact-show');}});
     for(const ev of ['dragstart','rotatestart','pitchstart','zoomstart'])map.on(ev,e=>{if(e.originalEvent&&!state.exporting&&state.view==='trip'&&!['free','overview'].includes(state.camMode))setCamMode('free',{quiet:true});});
     boot();
   });
@@ -1656,7 +1714,7 @@ function onRouteHover(e){
 }
 function onMapClick(e){
   if(state.exporting)return;
-  const box=[[e.point.x-6,e.point.y-6],[e.point.x+6,e.point.y+6]];
+  const r=matchMedia('(pointer: coarse)').matches?18:6,box=[[e.point.x-r,e.point.y-r],[e.point.x+r,e.point.y+r]];
   if(state.view==='log'){
     const o=map.queryRenderedFeatures(box,{layers:['obs-circle']})[0];if(o){openLogObs(o.properties.id);return;}
     const t=map.queryRenderedFeatures(box,{layers:['all-tracks-hit']})[0];if(t)openTrip(t.properties.tid);
@@ -1685,6 +1743,7 @@ function renderTripPanel(){
   const start=st.start||(trip.started_at?Date.parse(trip.started_at):null);
   const kv=[['Deltakere',trip.participants],['Hund',trip.with_dog?(trip.dogs||'Ja'):'Nei'],['Føre',cond.fore],['Sikt',cond.sikt]].filter(x=>x[1]);
   $('#pane-tur').innerHTML=`
+    <div class="pane-acts"><button class="btn" data-act="present">Presenter</button><button class="btn primary" data-act="export">Lag video</button></div>
     <div><div class="eyebrow">${start?fmtDate(start):'Uten dato'}${start?` · sesong ${seasonOf(start)}`:''}</div><h2 style="margin-top:8px">${esc(trip.name)}</h2><div class="sub">${[trip.area,start?'Start '+fmtClock(start):null].filter(Boolean).map(esc).join(' · ')}</div></div>
     <div class="stats">${s.map(([k,v,u])=>`<div class="stat"><span>${k}</span><b>${v}${u?`<small>${u}</small>`:''}</b></div>`).join('')}</div>
     ${kv.length?`<dl class="kv">${kv.map(([k,v])=>`<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`:''}
@@ -1706,6 +1765,7 @@ function renderTripPanel(){
     </div>
     <div class="note">${state.eleFromTerrain?'Høyder er hentet fra terrengmodellen. ':''}${trip.sample?'Eksempelturen har et omtrentlig spor laget for demonstrasjon.':''}</div>
     ${trip.mine!==false?`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="editTripBtn">Rediger turen</button></div>`:`<div class="note">Turen er lagt inn av en annen i laget. Du kan legge til egne observasjoner.</div>`}`;
+  $$('.pane-acts [data-act]').forEach(b=>b.addEventListener('click',()=>{$('#side').classList.remove('open');if(b.dataset.act==='present')setPresent(true);else openExport();}));
   const eb=$('#editTripBtn');if(eb)eb.addEventListener('click',()=>openTripModal(trip,false));
   const wb=$('#wxBtn');if(wb)wb.addEventListener('click',()=>refreshWeather(true));
   if(ws)drawWxChart();
@@ -1968,6 +2028,7 @@ function openLogObs(id){
 /* ---------- views ---------- */
 function setView(v){
   state.view=v;document.body.classList.toggle('view-log',v==='log');document.body.classList.toggle('view-trip',v==='trip');
+  $('#side').classList.toggle('open',v==='log');/* skuffen (under 980 px): turlista synes i jaktloggen, og kartet i en tur */
   if(!styleReady)return;
   const vis=(ids,on)=>ids.forEach(l=>map.setLayoutProperty(l,'visibility',on?'visible':'none'));
   vis(['all-tracks-casing','all-tracks-line','all-tracks-hit'],v==='log');
@@ -1983,7 +2044,7 @@ function showLog(){
   state.trip=null;state.T=null;state.pois=[];
   poiMarkers.forEach(m=>m.remove());poiMarkers=[];if(posMarker)posMarker.remove();
   if(styleReady){map.getSource('route').setData(EMPTY);RP.sent++;map.getSource('route-done').setData(EMPTY);}
-  setView('log');renderLog();updateTrackSource();fitLog();
+  setView('log');renderLog();updateTrackSource();fitLog();$('#pane-log').scrollTop=0;
 }
 async function openTrip(id){
   setPlaying(false);closePoi();stopAdd();busy('Åpner turen');
@@ -2684,6 +2745,8 @@ function bindUI(){
   $('#wzBack').addEventListener('click',wzBack);$('#wzNext').addEventListener('click',wzNextBtn);$('#wzSave').addEventListener('click',saveWiz);$('#wzDelete').addEventListener('click',deleteWiz);$('#crumbLog').addEventListener('click',showLog);
   $('#newTripBtn').addEventListener('click',()=>$('#gpxInput').click());
   $('#restoreInput').addEventListener('change',e=>{const f=e.target.files[0];if(f)importBackup(f);e.target.value='';});
+  /* på iPhone gjør accept .gpx-, .tcx- og .fit-filer grå i Filer-appen. Filtypen sjekkes uansett når fila leses. */
+  if(matchMedia('(pointer: coarse)').matches)$('#gpxInput').removeAttribute('accept');
   $('#gpxInput').addEventListener('change',e=>{const f=e.target.files[0];if(f)beginNewTrip(f);e.target.value='';});
   $('#addPoiBtn').addEventListener('click',()=>state.addMode?stopAdd():startAdd('rype'));$('#addOtherBtn').addEventListener('click',()=>state.addMode?stopAdd():startAdd('other'));$('#cancelAdd').addEventListener('click',stopAdd);$('#useTimeline').addEventListener('click',wizardAtTimeline);
   $('#presentBtn').addEventListener('click',()=>setPresent(true));$('#exitPresent').addEventListener('click',()=>setPresent(false));
