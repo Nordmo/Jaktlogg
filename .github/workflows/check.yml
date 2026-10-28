@@ -15,7 +15,7 @@ jobs:
     # Nettleseren og systempakkene ligger i bildet, så de hentes ikke med apt fra Ubuntu-speilet (det kan ta lang tid).
     # Versjonen må være lik @playwright/test i package.json (sjekkes i scripts/repo-rules.js).
     container: mcr.microsoft.com/playwright:v1.63.0-noble
-    timeout-minutes: 15
+    timeout-minutes: 20 # sikkerhetsmargin (mobiltestene, docs/specs/mobil.md), ikke et mål
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

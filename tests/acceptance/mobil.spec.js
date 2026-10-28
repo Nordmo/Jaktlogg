@@ -11,6 +11,8 @@ import { createHash } from 'node:crypto';
 const STAAENDE = [[390, 844], [360, 800]], LIGGENDE = [[844, 390], [800, 360]], ALLE = [...STAAENDE, ...LIGGENDE];
 const vp = ([width, height]) => ({ width, height });
 const navn = ([w, h]) => `${w}×${h}`;
+// Vinduene er delt mellom nettleserne (playwright.config.js, avgjort av Martin 28.10.2026). AK5 går gjennom vinduene til sin nettleser.
+const NETTLESER = { '390×844': 'webkit', '844×390': 'webkit', '360×800': 'chromium', '800×360': 'chromium' };
 const TUR = 'Rypejakt Tromsdalstinden (eksempel)';
 const MUS = { viewport: { width: 1280, height: 720 }, isMobile: false, hasTouch: false, deviceScaleFactor: 1 };
 const kilde = readFileSync('index.html', 'utf8');
@@ -264,7 +266,8 @@ test.describe('390×844', () => {
 });
 
 /* ---------- AK5: ingen sidescrolling, ingenting utenfor ---------- */
-test('AK5: i alle fire vinduene: ingen sidescrolling, og knappene i toppraden og tidslinja overlapper ikke og ligger innenfor vinduet', async ({ page }) => {
+test('AK5: i alle fire vinduene: ingen sidescrolling, og knappene i toppraden og tidslinja overlapper ikke og ligger innenfor vinduet', async ({ page, browserName }) => {
+  const mine = ALLE.filter(v => NETTLESER[navn(v)] === browserName);
   const oppsett = (hvor, w) => page.evaluate(([hvor, w]) => {
     const M = window.__m, p = [], d = document.documentElement;
     if (d.scrollWidth > w) p.push(`${hvor}: siden er ${d.scrollWidth} px bred`);
@@ -279,8 +282,8 @@ test('AK5: i alle fire vinduene: ingen sidescrolling, og knappene i toppraden og
     if (!document.querySelector('#auth').hidden && !M.innenfor(document.querySelector('#loginForm'))) p.push(`${hvor}: innloggingen ligger utenfor vinduet`);
     return p;
   }, [hvor, w]);
-  const rundt = async hvor => { const p = []; for (const v of ALLE) { await page.setViewportSize(vp(v)); await page.waitForTimeout(300); p.push(...await oppsett(`${hvor}, ${navn(v)}`, v[0])); } await page.setViewportSize(vp(STAAENDE[0])); await page.waitForTimeout(300); return p; };
-  await page.setViewportSize(vp(STAAENDE[0]));
+  const rundt = async hvor => { const p = []; for (const v of mine) { await page.setViewportSize(vp(v)); await page.waitForTimeout(300); p.push(...await oppsett(`${hvor}, ${navn(v)}`, v[0])); } await page.setViewportSize(vp(mine[0])); await page.waitForTimeout(300); return p; };
+  await page.setViewportSize(vp(mine[0]));
   const feil = await start(page), problemer = [];
   problemer.push(...await rundt('innloggingen'));
   await lokal(page);

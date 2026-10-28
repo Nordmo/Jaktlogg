@@ -1,7 +1,7 @@
 # Spec: Jaktlogg på mobil
 
 Status: godkjent
-Godkjent av: Martin, 28.10.2026 (rettingene i akseptansetesten og fordelingen på mobilprosjektene: Martin, 28.10.2026)
+Godkjent av: Martin, 28.10.2026 (rettingene i akseptansetesten, fordelingen på mobilprosjektene og delingen av vinduene: Martin, 28.10.2026)
 
 ## Mål
 
@@ -21,7 +21,7 @@ Jaktloggen kan brukes med tommelen på telefon, stående og liggende. Turene syn
 
 ## Akseptansekriterier
 
-AK1–AK3 og AK5–AK15 testes i Playwright i `tests/acceptance/mobil.spec.js`, i to nye prosjekter i `playwright.config.js`: `mobil-chromium` og `mobil-webkit`, med `isMobile`, `hasTouch` og `deviceScaleFactor: 3`. Testene kjører i 2D som resten (`startLocal`, `startCloud`). Det vanlige prosjektet hopper over `mobil.spec.js`, og mobilprosjektene kjører bare den. `workers: 2` står som før. AK3, AK4, AK8, AK11–AK14 og «Oppsett» kjører bare i `mobil-chromium` (`grepInvert` i `mobil-webkit`), fordi de ikke tester noe som er forskjellig mellom nettleserne. Vinduene er 390×844 og 360×800 stående, og 844×390 og 800×360 liggende. Flytene kjøres i 390×844 og 360×800. AK4 testes i Playwright der det går, men selve målingen gjør Martin på telefonen (AK16). AK16 og AK17 gjøres av Martin før merge.
+AK1–AK3 og AK5–AK15 testes i Playwright i `tests/acceptance/mobil.spec.js`, i to nye prosjekter i `playwright.config.js`: `mobil-chromium` og `mobil-webkit`, med `isMobile`, `hasTouch` og `deviceScaleFactor: 3`. Testene kjører i 2D som resten (`startLocal`, `startCloud`). Det vanlige prosjektet hopper over `mobil.spec.js`, og mobilprosjektene kjører bare den. `workers: 2` står som før. AK3, AK4, AK8, AK11–AK14 og «Oppsett» kjører bare i `mobil-chromium` (`grepInvert` i `mobil-webkit`), fordi de ikke tester noe som er forskjellig mellom nettleserne. Vinduene er 390×844 og 360×800 stående, og 844×390 og 800×360 liggende. De er delt mellom nettleserne: 390×844 og 844×390 kjører i `mobil-webkit`, og 360×800 og 800×360 i `mobil-chromium`. Testene som bare kjører i `mobil-chromium`, og AK15, kjører der i alle sine vinduer. AK5 går gjennom vinduene til sin nettleser. Hver AK kjører fortsatt stående og liggende i minst én nettleser der den gjorde det før delingen. Flytene kjøres i 390×844 og 360×800. AK4 testes i Playwright der det går, men selve målingen gjør Martin på telefonen (AK16). AK16 og AK17 gjøres av Martin før merge.
 
 «Trykkflate» måles slik: for hvert synlig element som kan trykkes på, sjekkes `document.elementFromPoint` i hjørnene og midten av en boks på 44×44 px sentrert på elementet. Alle ni punktene skal treffe elementet selv eller noe inni det. Da teller usynlige kanter med, og to knapper som står for tett, feiler.
 
@@ -84,6 +84,18 @@ Etter låsingen viste det seg at `tests/acceptance/mobil.spec.js` hadde fire fei
 4. AK6/AK7 trykket to ganger på samme punkt med 0,4 s mellomrom, og MapLibre tolket det som dobbelttrykk (zoom i stedet for `click`, også på `main`). Testen venter 600 ms før det andre trykket.
 
 AK3, AK4, AK8, AK11–AK14 og «Oppsett» kjører bare i `mobil-chromium`, fordi CI-tiden ellers ville økt med mer enn 5 minutter.
+
+Martin godkjente også `location` og `history` i `/* global */`-kommentaren i testfila (28.10.2026).
+
+### Tid for suiten (28.10.2026)
+
+Med begge nettleserne i alle vinduer tok jobben `check` i CI 13,5 min (mot 6,3–9,3 min, snitt ca. 8 min, i de åtte siste kjøringene uten mobiltestene). Den første kjøringen på PR #16 ble stoppet av tidsgrensen på 15 min. Martin bestemte derfor 28.10.2026 at vinduene deles mellom nettleserne (se innledningen til akseptansekriteriene). Endringen i den låste testen er godkjent bare for denne delingen (AK5). Tidsgrensen for jobben er hevet til 20 min som sikkerhetsmargin, ikke som løsning. Målet er under 11 min i CI.
+
+| | Lokalt (`npm run check`) | CI, jobben `check` |
+|---|---|---|
+| Før mobiltestene | ca. 3,6 min | 6,3–9,3 min, snitt ca. 8 min |
+| Begge nettleserne i alle vinduer | 6,8 min | 13,5 min |
+| Vinduene delt | 5,6 min | CI_TALL |
 
 ### `preserveDrawingBuffer`
 
