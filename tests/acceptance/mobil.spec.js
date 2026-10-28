@@ -1,4 +1,4 @@
-import { test, expect, sjekkStartstil } from '../helpers/oppstart.js';
+import { test, expect, sjekkStartstil, visLogin } from '../helpers/oppstart.js';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 // med isMobile, hasTouch og deviceScaleFactor 3. Vinduet settes per test. Appen startes i 2D som i resten av testene.
 // AK16 og AK17 gjør Martin på egen iPhone. Testene for mus (1280×720 uten berøring) passer på at PC-en er som i dag,
 // og består derfor også på main.
-/* global map, state, setTerrain, setProgress, setPlaying, mapIdle, openTrip, posMarker, openWizard:writable, window, document, devicePixelRatio, getComputedStyle, innerWidth, innerHeight, matchMedia, CSS, MouseEvent */
+/* global location, history, map, state, setTerrain, setProgress, setPlaying, mapIdle, openTrip, posMarker, openWizard:writable, window, document, devicePixelRatio, getComputedStyle, innerWidth, innerHeight, matchMedia, CSS, MouseEvent */
 
 const STAAENDE = [[390, 844], [360, 800]], LIGGENDE = [[844, 390], [800, 360]], ALLE = [...STAAENDE, ...LIGGENDE];
 const vp = ([width, height]) => ({ width, height });
@@ -17,13 +17,13 @@ const kilde = readFileSync('index.html', 'utf8');
 test.setTimeout(180_000);
 
 /* ---------- oppstart ---------- */
-// Åpner appen (sti kan ha ?fps) og venter på innloggingsskjermen. Hjelperne i siden ligger i window.__m.
-async function start(page, sti = '/') {
+// Åpner appen (sok kan være ?fps) og venter på innloggingsskjermen. Hjelperne i siden ligger i window.__m.
+async function start(page, sok = '') {
   const feil = [];
   page.on('pageerror', e => feil.push(e.message));
-  await page.addInitScript(() => { window.__test3D = false; });
-  await page.goto(sti);
-  await expect(page.locator('#lLocal')).toBeVisible({ timeout: 30_000 });
+  // visLogin åpner alltid '/'. Søkedelen (?fps) settes før appen leser adressen.
+  await page.addInitScript(s => { window.__test3D = false; if (location.search !== s) history.replaceState(null, '', location.pathname + s); }, sok);
+  await visLogin(page);
   await page.evaluate(installer);
   return feil;
 }
@@ -93,6 +93,7 @@ function installer() {
       if (el.matches('input') && el.closest('label.toggle, .chips label')) continue;
       M.vis(el);
       const r = el.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      if (el.matches('.poi-mk')) { const st = document.querySelector('#stage').getBoundingClientRect(); if (cx < st.left || cx > st.right || cy < st.top || cy > st.bottom) continue; }
       if (cx < 0 || cy < 0 || cx > innerWidth || cy > innerHeight) { feil.push(`${M.navn(el)}: utenfor vinduet`); continue; }
       const poi = el.matches('.poi-mk');
       let egne = 0, bom = 0;
@@ -124,9 +125,8 @@ function installer() {
     for (let k = 0; k < T.n; k += 7) {
       const i = (Math.floor(T.n / 2) + k) % T.n, q = map.project([T.pts[i].lon, T.pts[i].lat]), x = r.left + q.x, y = r.top + q.y;
       if (x < r.left + 40 || x > r.right - 40 || y < r.top + 40 || y > r.bottom - 40) continue;
-      if (merker.some(m => x > m.left - 40 && x < m.right + 40 && y > m.top - 40 && y < m.bottom + 40)) continue;
-      const h = document.elementFromPoint(x, y);
-      if (h && h.classList.contains('maplibregl-canvas')) return { x, y, i };
+      void merker;
+      if ([-22, 0, 22].every(dx => [-22, 0, 22].every(dy => { const h = document.elementFromPoint(x + dx, y + dy); return h && h.classList.contains('maplibregl-canvas'); }))) return { x, y, i };
     }
     return null;
   };
@@ -238,7 +238,7 @@ test.describe('390×844', () => {
     expect(await page.locator('#fps').count(), '#fps finnes uten ?fps').toBe(0);
     const uten = await lyttere();
 
-    feil.push(...await start(page, '/?fps')); await lokal(page);
+    feil.push(...await start(page, '?fps')); await lokal(page);
     const fps = page.locator('#fps'), tall = async () => { const m = (await fps.textContent()).match(/^(\d+) bilder\/s · (\d)×$/); return m ? +m[1] : NaN; };
     await expect(fps).toBeVisible();
     await expect(fps).toHaveText(/^\d+ bilder\/s · 2×$/);
@@ -256,7 +256,7 @@ test.describe('390×844', () => {
     await trykk(page.locator('#playBtn'));
     await expect.poll(tall, { timeout: 15_000, message: 'telleren viser ikke 0 når turen står stille' }).toBe(0);
 
-    feil.push(...await start(page, '/?fps&pr=3')); await lokal(page);
+    feil.push(...await start(page, '?fps&pr=3')); await lokal(page);
     await expect(fps).toHaveText(/^\d+ bilder\/s · 3×$/);
     expect(await page.evaluate(() => map.getPixelRatio())).toBe(3);
     expect(feil).toEqual([]);
@@ -338,6 +338,7 @@ for (const v of STAAENDE) test.describe(navn(v), () => {
     await sjekk('veiviseren, oppsummering', ['#wizModal']);
     await trykk(page.locator('#wizModal [data-close]').first());
 
+    await page.waitForTimeout(600);
     await trykk(page.locator('#addOtherBtn'));
     p = await kartpunkt(page);
     await page.touchscreen.tap(p.x, p.y);

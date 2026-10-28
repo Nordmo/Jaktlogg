@@ -1,7 +1,7 @@
 # Spec: Jaktlogg på mobil
 
 Status: godkjent
-Godkjent av: Martin, 28.10.2026
+Godkjent av: Martin, 28.10.2026 (rettingene i akseptansetesten og fordelingen på mobilprosjektene: Martin, 28.10.2026)
 
 ## Mål
 
@@ -21,7 +21,7 @@ Jaktloggen kan brukes med tommelen på telefon, stående og liggende. Turene syn
 
 ## Akseptansekriterier
 
-AK1–AK3 og AK5–AK15 testes i Playwright i `tests/acceptance/mobil.spec.js`, i to nye prosjekter i `playwright.config.js`: `mobil-chromium` og `mobil-webkit`, med `isMobile`, `hasTouch` og `deviceScaleFactor: 3`. Testene kjører i 2D som resten (`startLocal`, `startCloud`). Det vanlige prosjektet hopper over `mobil.spec.js`, og mobilprosjektene kjører bare den. `workers: 2` står som før. Vinduene er 390×844 og 360×800 stående, og 844×390 og 800×360 liggende. Flytene kjøres i 390×844 og 360×800. AK4 testes i Playwright der det går, men selve målingen gjør Martin på telefonen (AK16). AK16 og AK17 gjøres av Martin før merge.
+AK1–AK3 og AK5–AK15 testes i Playwright i `tests/acceptance/mobil.spec.js`, i to nye prosjekter i `playwright.config.js`: `mobil-chromium` og `mobil-webkit`, med `isMobile`, `hasTouch` og `deviceScaleFactor: 3`. Testene kjører i 2D som resten (`startLocal`, `startCloud`). Det vanlige prosjektet hopper over `mobil.spec.js`, og mobilprosjektene kjører bare den. `workers: 2` står som før. AK3, AK4, AK8, AK11–AK14 og «Oppsett» kjører bare i `mobil-chromium` (`grepInvert` i `mobil-webkit`), fordi de ikke tester noe som er forskjellig mellom nettleserne. Vinduene er 390×844 og 360×800 stående, og 844×390 og 800×360 liggende. Flytene kjøres i 390×844 og 360×800. AK4 testes i Playwright der det går, men selve målingen gjør Martin på telefonen (AK16). AK16 og AK17 gjøres av Martin før merge.
 
 «Trykkflate» måles slik: for hvert synlig element som kan trykkes på, sjekkes `document.elementFromPoint` i hjørnene og midten av en boks på 44×44 px sentrert på elementet. Alle ni punktene skal treffe elementet selv eller noe inni det. Da teller usynlige kanter med, og to knapper som står for tett, feiler.
 
@@ -71,7 +71,19 @@ Ingen JavaScript-feil (`pageerror`) i noen av testene.
 - Ytelse kan ikke måles i CI, der 3D-terrenget tegnes uten skjermkort (ca. 400 ms per bilde, PR #8). Spørsmålet om ekte telefon løses med `?fps` og sjekklista.
 - Videoeksporten: MapLibre 4.7.1 kan endre pikseltettheten underveis (`setPixelRatio` setter verdien og kaller `resize`). `runExport` setter allerede 1 eller 2 og setter tilbake det kartet hadde. Grensen begrenser derfor ikke videoen, og ingenting i eksporten endres.
 - Tidsbruk: mål hvor lang tid hele suiten (`npm run check`) tar lokalt og i CI, før og etter de to nye prosjektene, og skriv tallene i PR-beskrivelsen. Repoet skal bli privat, og da teller Actions-minuttene (2 000 per måned). Øker CI-tiden med mer enn 5 minutter, foreslås hvilke AK som kan nøyes med ett av mobilprosjektene, og Martin spørres før noe endres.
+- Kildehenvisningen i kartet er lukket fra start på berøringsskjerm (i-knappen åpner den). Esri, OpenTopoMap og Kartverket kan kreve at den er synlig. Det sjekkes i lisensavklaringen før betaling.
 - AK16 og AK17 kan ikke kjøres i CI. Eskaleringssjekken gir exit 1 fordi «Berører» har to avkrysninger. `/ship` åpner PR-en uten auto-merge, og Martin merger selv etter sjekklista.
+
+### Rettinger i akseptansetesten (godkjent av Martin 28.10.2026)
+
+Etter låsingen viste det seg at `tests/acceptance/mobil.spec.js` hadde fire feil som bare kunne rettes i testen (eskalert i PR #16). Kravene er uendret.
+
+1. `start()` brukte `page.goto`, som `testoppstart` AK7 forbyr. Den bruker nå `visLogin`, og `?fps` settes med `history.replaceState` i et init-skript før appen leser adressen.
+2. AK6 telte observasjonsmerker utenfor kartet som synlige (målt x ≈ 3 400–77 000 px etter zoom). Merker med midtpunkt utenfor `#stage` hoppes over.
+3. `kartpunkt()` krevde 40 px til alle merker og fant ingen punkter på ruten på en telefon (9 merker på ca. 180 px dekket alle 108 punktene). Nå må de ni punktene i en boks på 44×44 px rundt punktet treffe kartlerretet.
+4. AK6/AK7 trykket to ganger på samme punkt med 0,4 s mellomrom, og MapLibre tolket det som dobbelttrykk (zoom i stedet for `click`, også på `main`). Testen venter 600 ms før det andre trykket.
+
+AK3, AK4, AK8, AK11–AK14 og «Oppsett» kjører bare i `mobil-chromium`, fordi CI-tiden ellers ville økt med mer enn 5 minutter.
 
 ### `preserveDrawingBuffer`
 
@@ -121,6 +133,7 @@ Innlogging virker derfra (passordinnlogging går rett mot Supabase). Rypetreff o
 9. Klyp for å zoome i skuffen. Siden zoomer.
 10. Trykk 2D og 3D nede til høyre.
 11. Gå til hjemskjermen, åpne et par andre apper og vent et minutt. Gå tilbake til Safari. Kartet, ruten og avspillingen virker.
+12. Åpne en tur med mange rypetreff tett sammen, trykk «Rypetreff», og registrer et nytt treff mellom de gamle. Merkene er nå 44 px og kan dekke ruten. Går det ikke, er det en feil, og PR-en merges ikke.
 
 ### Endringer (trolig)
 

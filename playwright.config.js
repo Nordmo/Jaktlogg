@@ -1,7 +1,9 @@
 import { defineConfig } from '@playwright/test';
 
 // Mobiltestene (docs/specs/mobil.md) kjører i egne prosjekter med telefon i Chromium og WebKit. Resten kjører i chromium.
+// Det som ikke er forskjellig mellom nettleserne, kjører bare i mobil-chromium (avgjort av Martin 28.10.2026).
 const MOBIL = /acceptance\/mobil\.spec\.js$/;
+const BARE_CHROMIUM = /\b(AK3|AK4|AK8|AK11|AK12|AK13|AK14|Oppsett):/;
 const telefon = { isMobile: true, hasTouch: true, deviceScaleFactor: 3 };
 
 export default defineConfig({
@@ -13,7 +15,7 @@ export default defineConfig({
   projects: [
     { name: 'chromium', testIgnore: MOBIL, use: { browserName: 'chromium' } },
     { name: 'mobil-chromium', testMatch: MOBIL, use: { browserName: 'chromium', ...telefon } },
-    { name: 'mobil-webkit', testMatch: MOBIL, use: { browserName: 'webkit', ...telefon } },
+    { name: 'mobil-webkit', testMatch: MOBIL, grepInvert: BARE_CHROMIUM, use: { browserName: 'webkit', ...telefon } },
   ],
   webServer: {
     command: 'python3 -m http.server 4173 --bind 127.0.0.1',
