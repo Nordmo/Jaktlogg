@@ -95,9 +95,9 @@ Med begge nettleserne i alle vinduer tok jobben `check` i CI 13,5 min (mot 6,3�
 |---|---|---|
 | Før mobiltestene | ca. 3,6 min | 6,3–9,3 min, snitt ca. 8 min |
 | Begge nettleserne i alle vinduer | 6,8 min | 13,5 min |
-| Vinduene delt | 5,6 min | 12,2 min |
+| Vinduene delt | 5,6 min | 12,2 min (med én ustabil test), 11,9 min (uten) |
 
-Målet på 11 min er ikke nådd. Delingen sparte ca. 70 s i CI (`npm run check` 765 → 693 s, mot 517 s på `main`). I kjøringen med delte vinduer hang AK12 (390×844, `mobil-chromium`) til tidsgrensen på 180 s og besto ved omkjøringen (`1 flaky`). Det kostet over 3 min. Årsaken er et kappløp i testen: etter «Lagre tur» kaller appen `loadLog` og så `openTrip`, mens testen sjekker `state.view` før `openTrip` er ferdig. Uten omkjøringen ville jobben tatt ca. 9 min. Forslagene står i PR #16 og endres ikke uten Martins ja.
+Målet på 11 min er ikke nådd. Delingen sparte ca. 70 s i CI (`npm run check` 765 → 693 s, mot 517 s på `main`). I den første kjøringen med delte vinduer hang AK12 (390×844, `mobil-chromium`) til tidsgrensen på 180 s og besto ved omkjøringen. Årsaken er et kappløp i testen: etter «Lagre tur» kaller appen `loadLog` og så `openTrip`, mens testen sjekker `state.view` før `openTrip` er ferdig. Den andre kjøringen hadde ingen omkjøring og tok likevel 11,9 min, så det er mobiltestene selv som koster, ca. 3,5 min i CI. Forslagene står i PR #16 og endres ikke uten Martins ja.
 
 ### `preserveDrawingBuffer`
 
