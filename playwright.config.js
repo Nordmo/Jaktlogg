@@ -16,6 +16,8 @@ export default defineConfig({
   timeout: 60_000,
   workers: 2,
   retries: process.env.CI ? 1 : 0,
+  // I CI skrives tiden for hver test ut (avgjort av Martin 29.10.2026).
+  reporter: process.env.CI ? 'list' : undefined,
   use: { baseURL: 'http://127.0.0.1:4173' },
   projects: [
     { name: 'chromium', testIgnore: MOBIL, use: { browserName: 'chromium' } },
