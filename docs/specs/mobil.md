@@ -1,7 +1,7 @@
 # Spec: Jaktlogg på mobil
 
 Status: godkjent
-Godkjent av: Martin, 28.10.2026 (rettingene i akseptansetesten, fordelingen på mobilprosjektene og delingen av vinduene: Martin, 28.10.2026; AK12, AK4 i to tester, testene for mus og zoom bare i Chromium og skuffen i AK4: Martin, 29.10.2026; AK18–AK21 og sjekkliste 13–17 etter testing på iPhone: Martin, 29.10.2026)
+Godkjent av: Martin, 28.10.2026 (rettingene i akseptansetesten, fordelingen på mobilprosjektene og delingen av vinduene: Martin, 28.10.2026; AK12, AK4 i to tester, testene for mus og zoom bare i Chromium og skuffen i AK4: Martin, 29.10.2026; AK18–AK21 og sjekkliste 13–17 etter testing på iPhone, og forslag B for topplinja (AK22): Martin, 29.10.2026)
 
 ## Mål
 
@@ -21,7 +21,7 @@ Jaktloggen kan brukes med tommelen på telefon, stående og liggende. Turene syn
 
 ## Akseptansekriterier
 
-AK1–AK3, AK5–AK15 og AK18–AK21 testes i Playwright i `tests/acceptance/mobil.spec.js`, i to nye prosjekter i `playwright.config.js`: `mobil-chromium` og `mobil-webkit`, med `isMobile`, `hasTouch` og `deviceScaleFactor: 3`. Testene kjører i 2D som resten (`startLocal`, `startCloud`). Det vanlige prosjektet hopper over `mobil.spec.js`, og mobilprosjektene kjører bare den. `workers: 2` står som før. AK3, AK4, AK8, AK11–AK14, «Oppsett», testen med mus (AK6, AK7 og AK12 på PC) og AK7 om zoom kjører bare i `mobil-chromium` (`grepInvert` i `mobil-webkit`), fordi de ikke tester noe som er forskjellig mellom nettleserne. Vinduene er 390×844 og 360×800 stående, og 844×390 og 800×360 liggende. De er delt mellom nettleserne: 390×844 og 844×390 kjører i `mobil-webkit`, og 360×800 og 800×360 i `mobil-chromium`. Testene som bare kjører i `mobil-chromium`, og AK15, kjører der i alle sine vinduer. AK5 går gjennom vinduene til sin nettleser. Hver AK kjører fortsatt stående og liggende i minst én nettleser der den gjorde det før delingen. Flytene kjøres i 390×844 og 360×800. AK4 testes i Playwright der det går, men selve målingen gjør Martin på telefonen (AK16). AK16 og AK17 gjøres av Martin før merge.
+AK1–AK3, AK5–AK15 og AK18–AK22 testes i Playwright i `tests/acceptance/mobil.spec.js`, i to nye prosjekter i `playwright.config.js`: `mobil-chromium` og `mobil-webkit`, med `isMobile`, `hasTouch` og `deviceScaleFactor: 3`. Testene kjører i 2D som resten (`startLocal`, `startCloud`). Det vanlige prosjektet hopper over `mobil.spec.js`, og mobilprosjektene kjører bare den. `workers: 2` står som før. AK3, AK4, AK8, AK11–AK14, «Oppsett», testen med mus (AK6, AK7 og AK12 på PC) og AK7 om zoom kjører bare i `mobil-chromium` (`grepInvert` i `mobil-webkit`), fordi de ikke tester noe som er forskjellig mellom nettleserne. Vinduene er 390×844 og 360×800 stående, og 844×390 og 800×360 liggende. De er delt mellom nettleserne: 390×844 og 844×390 kjører i `mobil-webkit`, og 360×800 og 800×360 i `mobil-chromium`. Testene som bare kjører i `mobil-chromium`, og AK15, kjører der i alle sine vinduer. AK5 går gjennom vinduene til sin nettleser. Hver AK kjører fortsatt stående og liggende i minst én nettleser der den gjorde det før delingen. Flytene kjøres i 390×844 og 360×800. AK4 testes i Playwright der det går, men selve målingen gjør Martin på telefonen (AK16). AK16 og AK17 gjøres av Martin før merge.
 
 «Trykkflate» måles slik: for hvert synlig element som kan trykkes på, sjekkes `document.elementFromPoint` i hjørnene og midten av en boks på 44×44 px sentrert på elementet. Alle ni punktene skal treffe elementet selv eller noe inni det. Da teller usynlige kanter med, og to knapper som står for tett, feiler.
 
@@ -49,6 +49,7 @@ Ingen JavaScript-feil (`pageerror`) i noen av testene.
 19. **AK19 (Analyse):** Den første valgknappen i radene Sesong, Art og Hund har samme venstre kant (høyst 1 px forskjell). Den tomme ruta blant tallene (ved siden av Treffprosent) har samme farge som rutene med tall.
 20. **AK20 (Analyse lukker skuffen):** Trykk på «Analyse» lukker skuffen med turlista.
 21. **AK21 (rypetreff-banneret):** Etter trykk på «Rypetreff» er instruksjonen tekst (ingen bakgrunn eller kant, og banneret er ikke oransje som en knapp), og «Bruk posisjonen på tidslinjen» og «Avbryt» er tydelige knapper. Ingen tekst i banneret går over mer enn to linjer (360×800 og 390×844), og banneret dekker ingen knapper eller ikoner i kartet eller toppraden.
+22. **AK22 (topplinja på smal skjerm):** Under 560 px står bare «Rypetreff» i topplinja, med tekst ved siden av ikonet. «Annet punkt» ligger øverst i Tur-fanen sammen med Presenter og Lag video, og trykk lukker skuffen og starter plasseringen i kartet. Fra 560 px står «Annet punkt» i topplinja som før.
 
 ## Berører
 
@@ -124,9 +125,11 @@ I den lokale kjøringen på 625 s tok AK1 og AK2 35–71 s hver, mot 6–13 s el
 
 Innholdet i «Ny observasjon» (Annet punkt): typene Drone, Utsikt, Pause, Topp og Start passer ikke i en jaktapp. Det tas i en egen spec.
 
+Diagrammene i Analyse: tallene og etikettene er for små på telefon, fordi diagrammene skaleres ned. Det tas i en egen spec (avgjort av Martin 29.10.2026).
+
 ### Etter testing på iPhone (29.10.2026)
 
-Martin fant feil på telefonen som testene ikke fanget: tekstene under spolelinja overlappet, kildeknappen (i) gjentok ikonet etter at den ble 44 px, valgradene i Analyse startet på ulike steder og den tomme ruta hadde en annen farge, skuffen lå over Analyse, rypetreff-banneret var et oransje felt der instruksjonen så ut som en knapp og teksten brøt over mange linjer, og ikonknappene i topplinja var uforståelige uten tekst. AK18–AK21 og punkt 13–17 i sjekklista er lagt til, godkjent av Martin 29.10.2026. Forslaget til topplinja vises Martin før det bygges.
+Martin fant feil på telefonen som testene ikke fanget: tekstene under spolelinja overlappet, kildeknappen (i) gjentok ikonet etter at den ble 44 px, valgradene i Analyse startet på ulike steder og den tomme ruta hadde en annen farge, skuffen lå over Analyse, rypetreff-banneret var et oransje felt der instruksjonen så ut som en knapp og teksten brøt over mange linjer, og ikonknappene i topplinja var uforståelige uten tekst. AK18–AK21 og punkt 13–17 i sjekklista er lagt til, godkjent av Martin 29.10.2026. Martin valgte forslag B for topplinja 29.10.2026: bare «Rypetreff» med tekst i topplinja, og «Annet punkt» øverst i Tur-fanen (AK22). I AK6/AK7 og AK18 trykker testen derfor på «Annet punkt» i Tur-fanen i stedet for i topplinja, godkjent av Martin samme dag. Kravene i testene er uendret.
 
 ### `preserveDrawingBuffer`
 
@@ -181,7 +184,7 @@ Innlogging virker derfra (passordinnlogging går rett mot Supabase). Rypetreff o
 14. Analyse: valgknappene i radene Sesong, Art og Hund starter på samme linje, og ingen rute blant tallene har en annen farge.
 15. Trykk «Analyse»: skuffen med turlista lukkes.
 16. Trykk «Rypetreff»: instruksjonen er tekst, «Bruk posisjonen på tidslinjen» og «Avbryt» er tydelige knapper, ingen tekst går over mer enn to linjer, og banneret dekker ingen ikoner.
-17. Knappene i topplinja (Rypetreff og Annet punkt) er forståelige på smal skjerm. Løsningen avgjøres av Martin før den bygges.
+17. På smal skjerm står «Rypetreff» med tekst i topplinja, og «Annet punkt» øverst i Tur-fanen virker.
 
 ### Endringer (trolig)
 

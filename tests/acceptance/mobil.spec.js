@@ -61,6 +61,14 @@ async function aapneTurDirekte(page) {
   await page.evaluate(async n => { await openTrip(state.trips.find(t => t.name === n).id); await mapIdle(30000); }, TUR);
   if (await page.locator('#panelToggle').isVisible() && await skuffSynlig(page)) { await trykk(page.locator('#panelToggle')); await expect.poll(() => skuffSynlig(page)).toBe(false); }
 }
+// «Annet punkt» ligger øverst i Tur-fanen under 560 px (forslag B, avgjort av Martin 29.10.2026).
+async function annetPunkt(page) {
+  await trykk(page.locator('#panelToggle'));
+  await expect.poll(() => skuffSynlig(page)).toBe(true);
+  await trykk(page.locator('.tab[data-tab="tur"]'));
+  await trykk(page.locator('#pane-tur button:visible', { hasText: 'Annet punkt' }));
+  await expect.poll(() => skuffSynlig(page)).toBe(false);
+}
 const tilbake = page => trykk(page.locator('#crumbLog:visible, #brand:visible').first());
 
 /* ---------- hjelpere i siden ---------- */
@@ -375,7 +383,7 @@ for (const v of STAAENDE) test.describe(navn(v), () => {
     await trykk(page.locator('#wizModal [data-close]').first());
 
     await page.waitForTimeout(600);
-    await trykk(page.locator('#addOtherBtn'));
+    await annetPunkt(page);
     p = await kartpunkt(page);
     await page.touchscreen.tap(p.x, p.y);
     await expect(page.locator('#poiModal')).toBeVisible();
@@ -740,7 +748,7 @@ test('AK18: ingen synlige tekster i tidslinja, toppraden eller dialogene overlap
   await rundt('veiviseren', ['#wizModal']);
   await trykk(page.locator('#wizModal [data-close]').first());
   await page.waitForTimeout(600);
-  await trykk(page.locator('#addOtherBtn'));
+  await annetPunkt(page);
   p = await kartpunkt(page);
   await page.touchscreen.tap(p.x, p.y);
   await expect(page.locator('#poiModal')).toBeVisible();
@@ -796,5 +804,31 @@ test('AK21: rypetreff-banneret er tekst med tydelige knapper, ingen tekst går o
   expect(r.ikoner, 'banneret dekker ikoner').toEqual([]);
   expect(r.tekstSomKnapp, 'instruksjonen ser ut som en knapp').toBe(false);
   expect(r.knapper, '«Bruk posisjonen på tidslinjen» og «Avbryt» ser ikke ut som knapper').toEqual([true, true]);
+  expect(feil).toEqual([]);
+});
+
+test('AK22: under 560 px står bare «Rypetreff» i topplinja, med tekst, og «Annet punkt» ligger øverst i Tur-fanen og virker; fra 560 px står begge i topplinja', async ({ page, browserName }) => {
+  const v = ALLE.find(w => NETTLESER[navn(w)] === browserName && w[1] > w[0]);
+  await page.setViewportSize(vp(v));
+  const feil = await start(page); await lokal(page); await aapneTur(page);
+  await expect.poll(() => skuffSynlig(page)).toBe(false);
+  const topp = () => page.evaluate(() => {
+    const M = window.__m, r = document.querySelector('#addPoiBtn'), l = r.querySelector('.lbl-s');
+    return { rype: M.synlig(r) && M.innenfor(r), tekst: !!l && M.synlig(l) ? l.textContent.trim() : null, annet: M.synlig(document.querySelector('#addOtherBtn')) };
+  });
+  expect(await topp()).toEqual({ rype: true, tekst: 'Rypetreff', annet: false });
+  await trykk(page.locator('#panelToggle'));
+  await expect.poll(() => skuffSynlig(page)).toBe(true);
+  await trykk(page.locator('.tab[data-tab="tur"]'));
+  const k = page.locator('#pane-tur button:visible', { hasText: 'Annet punkt' });
+  await expect(k).toHaveCount(1);
+  expect(await k.evaluate(e => { const h = document.querySelector('#pane-tur h2'); return !h || e.getBoundingClientRect().top < h.getBoundingClientRect().top; }), '«Annet punkt» står ikke øverst i Tur-fanen').toBe(true);
+  await trykk(k);
+  await expect.poll(() => skuffSynlig(page), { message: 'skuffen lukkes ikke' }).toBe(false);
+  await expect(page.locator('#addHint')).toBeVisible();
+  expect(await page.evaluate(() => state.addMode && state.addKind)).toBe('other');
+  await trykk(page.locator('#cancelAdd'));
+  await page.setViewportSize({ width: 844, height: 390 });
+  await expect.poll(() => page.evaluate(() => window.__m.synlig(document.querySelector('#addOtherBtn'))), { message: '«Annet punkt» står ikke i topplinja fra 560 px' }).toBe(true);
   expect(feil).toEqual([]);
 });
