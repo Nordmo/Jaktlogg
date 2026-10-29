@@ -1,7 +1,7 @@
 # Spec: Jaktlogg på mobil
 
 Status: godkjent
-Godkjent av: Martin, 28.10.2026 (rettingene i akseptansetesten, fordelingen på mobilprosjektene og delingen av vinduene: Martin, 28.10.2026)
+Godkjent av: Martin, 28.10.2026 (rettingene i akseptansetesten, fordelingen på mobilprosjektene og delingen av vinduene: Martin, 28.10.2026; AK12, AK4 i to tester, testene for mus og zoom bare i Chromium og skuffen i AK4: Martin, 29.10.2026)
 
 ## Mål
 
@@ -21,7 +21,7 @@ Jaktloggen kan brukes med tommelen på telefon, stående og liggende. Turene syn
 
 ## Akseptansekriterier
 
-AK1–AK3 og AK5–AK15 testes i Playwright i `tests/acceptance/mobil.spec.js`, i to nye prosjekter i `playwright.config.js`: `mobil-chromium` og `mobil-webkit`, med `isMobile`, `hasTouch` og `deviceScaleFactor: 3`. Testene kjører i 2D som resten (`startLocal`, `startCloud`). Det vanlige prosjektet hopper over `mobil.spec.js`, og mobilprosjektene kjører bare den. `workers: 2` står som før. AK3, AK4, AK8, AK11–AK14 og «Oppsett» kjører bare i `mobil-chromium` (`grepInvert` i `mobil-webkit`), fordi de ikke tester noe som er forskjellig mellom nettleserne. Vinduene er 390×844 og 360×800 stående, og 844×390 og 800×360 liggende. De er delt mellom nettleserne: 390×844 og 844×390 kjører i `mobil-webkit`, og 360×800 og 800×360 i `mobil-chromium`. Testene som bare kjører i `mobil-chromium`, og AK15, kjører der i alle sine vinduer. AK5 går gjennom vinduene til sin nettleser. Hver AK kjører fortsatt stående og liggende i minst én nettleser der den gjorde det før delingen. Flytene kjøres i 390×844 og 360×800. AK4 testes i Playwright der det går, men selve målingen gjør Martin på telefonen (AK16). AK16 og AK17 gjøres av Martin før merge.
+AK1–AK3 og AK5–AK15 testes i Playwright i `tests/acceptance/mobil.spec.js`, i to nye prosjekter i `playwright.config.js`: `mobil-chromium` og `mobil-webkit`, med `isMobile`, `hasTouch` og `deviceScaleFactor: 3`. Testene kjører i 2D som resten (`startLocal`, `startCloud`). Det vanlige prosjektet hopper over `mobil.spec.js`, og mobilprosjektene kjører bare den. `workers: 2` står som før. AK3, AK4, AK8, AK11–AK14, «Oppsett», testen med mus (AK6, AK7 og AK12 på PC) og AK7 om zoom kjører bare i `mobil-chromium` (`grepInvert` i `mobil-webkit`), fordi de ikke tester noe som er forskjellig mellom nettleserne. Vinduene er 390×844 og 360×800 stående, og 844×390 og 800×360 liggende. De er delt mellom nettleserne: 390×844 og 844×390 kjører i `mobil-webkit`, og 360×800 og 800×360 i `mobil-chromium`. Testene som bare kjører i `mobil-chromium`, og AK15, kjører der i alle sine vinduer. AK5 går gjennom vinduene til sin nettleser. Hver AK kjører fortsatt stående og liggende i minst én nettleser der den gjorde det før delingen. Flytene kjøres i 390×844 og 360×800. AK4 testes i Playwright der det går, men selve målingen gjør Martin på telefonen (AK16). AK16 og AK17 gjøres av Martin før merge.
 
 «Trykkflate» måles slik: for hvert synlig element som kan trykkes på, sjekkes `document.elementFromPoint` i hjørnene og midten av en boks på 44×44 px sentrert på elementet. Alle ni punktene skal treffe elementet selv eller noe inni det. Da teller usynlige kanter med, og to knapper som står for tett, feiler.
 
@@ -98,6 +98,21 @@ Med begge nettleserne i alle vinduer tok jobben `check` i CI 13,5 min (mot 6,3�
 | Vinduene delt | 5,6 min | 12,2 min (med én ustabil test), 11,9 min (uten) |
 
 Målet på 11 min er ikke nådd. Delingen sparte ca. 70 s i CI (`npm run check` 765 → 693 s, mot 517 s på `main`). I den første kjøringen med delte vinduer hang AK12 (390×844, `mobil-chromium`) til tidsgrensen på 180 s og besto ved omkjøringen. Årsaken er et kappløp i testen: etter «Lagre tur» kaller appen `loadLog` og så `openTrip`, mens testen sjekker `state.view` før `openTrip` er ferdig. Den andre kjøringen hadde ingen omkjøring og tok likevel 11,9 min, så det er mobiltestene selv som koster, ca. 3,5 min i CI. Forslagene står i PR #16 og endres ikke uten Martins ja.
+
+Martin godkjente 29.10.2026 disse endringene, og endringen i den låste testen gjelder bare dem:
+
+1. AK12 venter til turen faktisk er åpnet etter «Lagre tur» (`state.view`, `state.trip.name` og at lastingen er borte) før testen går tilbake til jaktloggen.
+2. AK4 er delt i to tester: én med `?fps` og avspilling, og én som bare sjekker at `?fps&pr=3` gir 3×.
+3. Testen med mus og AK7 om zoom kjører bare i `mobil-chromium`.
+4. AK4 med `?fps` venter til skuffen er lukket (`skuffSynlig` er `false`) før den sjekker telleren i turvisningen, slik AK1 gjør. Uten det feilet den i 4 av 8 kjøringer, fordi fanene lå over telleren mens skuffen gled ut (godkjent av Martin 29.10.2026, bare denne linjen).
+
+Med alle fire endringene besto `mobil.spec.js` fem ganger i begge mobilprosjektene (`--repeat-each 5`: 155 bestått, 5 hoppet over (AK15 i WebKit), 0 feilet).
+
+Målet på 11 min er tatt bort. Flere tester skal ikke slås sammen for å spare tid.
+
+| | Lokalt (`npm run check`) | CI, jobben `check` |
+|---|---|---|
+| Etter endringene 29.10.2026 | 10,4 min (625 s, rett etter 15 min med gjentatte kjøringer, så Mac-en var trolig belastet) | CI_TALL |
 
 ### `preserveDrawingBuffer`
 

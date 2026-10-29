@@ -3,7 +3,8 @@ import { defineConfig } from '@playwright/test';
 // Mobiltestene (docs/specs/mobil.md) kjører i egne prosjekter med telefon i Chromium og WebKit. Resten kjører i chromium.
 // Det som ikke er forskjellig mellom nettleserne, kjører bare i mobil-chromium (avgjort av Martin 28.10.2026).
 const MOBIL = /acceptance\/mobil\.spec\.js$/;
-const BARE_CHROMIUM = /\b(AK3|AK4|AK8|AK11|AK12|AK13|AK14|Oppsett):/;
+// Testen med mus og AK7 om zoom kjører også bare i mobil-chromium (avgjort av Martin 29.10.2026).
+const BARE_CHROMIUM = /\b(AK3|AK4|AK8|AK11|AK12|AK13|AK14|Oppsett):|\(mus\):|AK7: viewport-taggen/;
 // Telefonvinduene er delt: 390×844 og 844×390 i mobil-webkit, 360×800 og 800×360 i mobil-chromium (avgjort av Martin
 // 28.10.2026). Testene over og AK15 (WEBGL_lose_context) kjører i mobil-chromium uansett vindu. AK5 deler selv i testen.
 const IKKE_WEBKIT = /360×800|800×360/;

@@ -234,7 +234,7 @@ for (const dsf of [3, 2, 1]) test.describe(`devicePixelRatio ${dsf}`, () => {
 /* ---------- AK4: teller for bilder per sekund ---------- */
 test.describe('390×844', () => {
   test.use({ viewport: vp([390, 844]) });
-  test('AK4: telleren finnes bare med ?fps, viser bilder/s og pikseltetthet, dekker ingen knapper, og ?fps&pr=3 bruker 3×', async ({ page }) => {
+  test('AK4: telleren finnes bare med ?fps, viser bilder/s og pikseltetthet, og dekker ingen knapper', async ({ page }) => {
     const lyttere = () => page.evaluate(() => ((map._listeners && map._listeners.render) || []).length + ((map._oneTimeListeners && map._oneTimeListeners.render) || []).length);
     const feil = await start(page); await lokal(page);
     expect(await page.locator('#fps').count(), '#fps finnes uten ?fps').toBe(0);
@@ -252,14 +252,18 @@ test.describe('390×844', () => {
     });
     expect(await plassering()).toEqual({ pe: 'none', iKartet: true, oppeTilVenstre: true, knapper: [] });
     await aapneTur(page);
+    await expect.poll(() => skuffSynlig(page)).toBe(false);
     expect(await plassering(), 'i turvisningen').toEqual({ pe: 'none', iKartet: true, oppeTilVenstre: true, knapper: [] });
     await trykk(page.locator('#playBtn'));
     await expect.poll(tall, { timeout: 10_000, message: 'telleren viser 0 under avspilling' }).toBeGreaterThan(0);
     await trykk(page.locator('#playBtn'));
     await expect.poll(tall, { timeout: 15_000, message: 'telleren viser ikke 0 når turen står stille' }).toBe(0);
-
-    feil.push(...await start(page, '?fps&pr=3')); await lokal(page);
-    await expect(fps).toHaveText(/^\d+ bilder\/s · 3×$/);
+    expect(feil).toEqual([]);
+  });
+  // Delt ut av testen over så de kan kjøre samtidig (avgjort av Martin 29.10.2026).
+  test('AK4: med ?fps&pr=3 tegnes kartet med pikseltetthet 3, og telleren viser 3×', async ({ page }) => {
+    const feil = await start(page, '?fps&pr=3'); await lokal(page);
+    await expect(page.locator('#fps')).toHaveText(/^\d+ bilder\/s · 3×$/);
     expect(await page.evaluate(() => map.getPixelRatio())).toBe(3);
     expect(feil).toEqual([]);
   });
@@ -585,8 +589,10 @@ for (const v of STAAENDE) test.describe(navn(v), () => {
     expect(await naas(page, '#tSave')).toBe('ok');
     await trykk(page.locator('#tSave'));
     await expect(page.locator('#tripModal')).toBeHidden({ timeout: 30_000 });
-    await page.waitForFunction(() => state.trips.some(t => t.name === 'Mobiltur (test)'));
-    if (await page.evaluate(() => state.view === 'trip')) await tilbake(page);
+    // Etter «Lagre tur» laster appen jaktloggen og åpner så turen. Testen går tilbake først når turen er åpnet
+    // (lastingen er borte), ellers kan openTrip bli ferdig etter at testen har gått tilbake (avgjort av Martin 29.10.2026).
+    await page.waitForFunction(() => state.view === 'trip' && !!state.trip && state.trip.name === 'Mobiltur (test)' && document.querySelector('#loading').hidden);
+    await tilbake(page);
     await page.waitForFunction(() => state.view === 'log');
     await expect.poll(() => skuffSynlig(page)).toBe(true);
     await expect.poll(() => page.evaluate(() => {
