@@ -112,7 +112,9 @@ Målet på 11 min er tatt bort. Flere tester skal ikke slås sammen for å spare
 
 | | Lokalt (`npm run check`) | CI, jobben `check` |
 |---|---|---|
-| Etter endringene 29.10.2026 | 10,4 min (625 s, rett etter 15 min med gjentatte kjøringer, så Mac-en var trolig belastet) | CI_TALL |
+| Etter endringene 29.10.2026 | 10,4 min (625 s, rett etter 15 min med gjentatte kjøringer, så Mac-en var trolig belastet) | 14,5 min (`npm run check` 831 s, ingen omkjøringer) |
+
+I den lokale kjøringen på 625 s tok AK1 og AK2 35–71 s hver, mot 6–13 s ellers. Det kom ikke igjen i to nye kjøringer (mobilprosjektene 160 s), og årsaken er ikke funnet. CI tok 14,5 min, mot 11,9 min dagen før med flere tester. CI viser bare sammendraget (`166 passed (13.8m)`), ikke tid per test, så det er ikke kjent om det er de samme testene.
 
 ### `preserveDrawingBuffer`
 
