@@ -121,6 +121,35 @@ function installer() {
     }
     return [...feil];
   };
+  // AK18 og AK21: tekstbitene (hver linje i hver tekstnode) i områdene, klippet av foreldre med overflow, i skjermkoordinater.
+  M.tekstbiter = omr => {
+    const ut = [];
+    for (const root of omr.map(o => document.querySelector(o)).filter(Boolean)) {
+      const w = document.createTreeWalker(root, 4);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        const el = n.parentElement;
+        if (!n.textContent.trim() || !M.synlig(el) || el.closest('select, option')) continue;
+        const rg = document.createRange(); rg.selectNodeContents(n);
+        for (const r0 of rg.getClientRects()) {
+          let r = { l: r0.left, t: r0.top, r: r0.right, b: r0.bottom };
+          for (let p = el; p && p !== document.body; p = p.parentElement) {
+            const cs = getComputedStyle(p);
+            if (cs.overflowX !== 'visible' || cs.overflowY !== 'visible') { const q = p.getBoundingClientRect(); r = { l: Math.max(r.l, q.left), t: Math.max(r.t, q.top), r: Math.min(r.r, q.right), b: Math.min(r.b, q.bottom) }; }
+          }
+          if (r.r - r.l >= 1 && r.b - r.t >= 1) ut.push({ n, el, ...r });
+        }
+      }
+    }
+    return ut;
+  };
+  M.tekstOverlapp = omr => {
+    const b = M.tekstbiter(omr), feil = new Set();
+    for (let i = 0; i < b.length; i++) for (let j = i + 1; j < b.length; j++) {
+      const x = b[i], y = b[j]; if (x.n === y.n) continue;
+      if (Math.min(x.r, y.r) - Math.max(x.l, y.l) > 1 && Math.min(x.b, y.b) - Math.max(x.t, y.t) > 1) feil.add(`«${x.n.textContent.trim().slice(0, 24)}» overlapper «${y.n.textContent.trim().slice(0, 24)}»`);
+    }
+    return [...feil];
+  };
   // Et punkt i kartet (skjermkoordinater) som treffer kartlerretet, ligger minst 40 px fra kanten og fra merkene.
   M.kartpunkt = () => {
     const T = state.T, r = map.getContainer().getBoundingClientRect(), merker = [...document.querySelectorAll('.poi-mk')].map(m => m.getBoundingClientRect());
@@ -678,4 +707,94 @@ test.describe('390×844', () => {
     expect(await oransje(), 'ruten synes ikke etter at konteksten kom tilbake').toBeGreaterThan(50);
     expect(feil).toEqual([]);
   });
+});
+
+/* ---------- AK18–AK21 (lagt til av Martin 29.10.2026 etter testing på iPhone) ---------- */
+test('AK18: ingen synlige tekster i tidslinja, toppraden eller dialogene overlapper hverandre, i alle fire vinduene', async ({ page, browserName }) => {
+  const mine = ALLE.filter(v => NETTLESER[navn(v)] === browserName), feil = [];
+  const rundt = async (hvor, omr) => {
+    for (const v of mine) {
+      await page.setViewportSize(vp(v)); await page.waitForTimeout(400);
+      feil.push(...(await page.evaluate(o => window.__m.tekstOverlapp(o), omr)).map(f => `${hvor}, ${navn(v)}: ${f}`));
+    }
+    await page.setViewportSize(vp(mine[0])); await page.waitForTimeout(400);
+  };
+  await page.setViewportSize(vp(mine[0]));
+  const err = await start(page); await lokal(page); await aapneTur(page);
+  await expect.poll(() => skuffSynlig(page)).toBe(false);
+  await page.evaluate(() => setProgress(0.4, true));
+  await rundt('turen', ['#tl', '.top']);
+  await trykk(page.locator('#panelToggle'));
+  await trykk(page.locator('.tab[data-tab="tur"]'));
+  await trykk(page.locator('#editTripBtn'));
+  await expect(page.locator('#tripModal')).toBeVisible();
+  await rundt('turdialogen', ['#tripModal']);
+  await trykk(page.locator('#tripModal [data-close]').first());
+  await trykk(page.locator('#panelToggle'));
+  await expect.poll(() => skuffSynlig(page)).toBe(false);
+  await trykk(page.locator('#addPoiBtn'));
+  let p = await kartpunkt(page);
+  await page.touchscreen.tap(p.x, p.y);
+  await expect(page.locator('#wizModal')).toBeVisible();
+  for (const valg of ['Singelrype', null, 'Bom', 'Lirype']) await trykk(valg ? page.locator('#wzBody .opt', { hasText: valg }) : page.locator('#wzBody .opt').first());
+  await rundt('veiviseren', ['#wizModal']);
+  await trykk(page.locator('#wizModal [data-close]').first());
+  await page.waitForTimeout(600);
+  await trykk(page.locator('#addOtherBtn'));
+  p = await kartpunkt(page);
+  await page.touchscreen.tap(p.x, p.y);
+  await expect(page.locator('#poiModal')).toBeVisible();
+  await rundt('observasjonsdialogen', ['#poiModal']);
+  expect(feil).toEqual([]);
+  expect(err).toEqual([]);
+});
+
+test('AK19: i Analyse starter den første valgknappen i hver rad på samme venstre kant, og den tomme ruta blant tallene har samme farge som de andre', async ({ page, browserName }) => {
+  const v = ALLE.find(w => NETTLESER[navn(w)] === browserName && w[1] > w[0]);
+  await page.setViewportSize(vp(v));
+  const feil = await start(page); await lokal(page);
+  await trykk(page.locator('#logMode button[data-m="ana"]'));
+  await expect(page.locator('#ana')).toBeVisible();
+  const r = await page.evaluate(() => ({
+    venstre: [...document.querySelectorAll('#ana .ana-filters .chips')].map(c => Math.round(c.querySelector('button').getBoundingClientRect().left)),
+    flate: getComputedStyle(document.querySelector('#ana .kpis')).backgroundColor,
+    rute: getComputedStyle(document.querySelector('#ana .kpis > div')).backgroundColor,
+  }));
+  expect(r.venstre.length, 'fant ikke valgradene').toBe(3);
+  expect(Math.max(...r.venstre) - Math.min(...r.venstre), `venstre kant: ${r.venstre.join(', ')}`).toBeLessThanOrEqual(1);
+  expect(r.flate, 'tom rute har en annen farge enn rutene med tall').toBe(r.rute);
+  expect(feil).toEqual([]);
+});
+
+test('AK20: trykk på «Analyse» lukker skuffen med turlista', async ({ page, browserName }) => {
+  await page.setViewportSize(vp(ALLE.find(w => NETTLESER[navn(w)] === browserName)));
+  const feil = await start(page); await lokal(page);
+  await expect.poll(() => skuffSynlig(page)).toBe(true);
+  await trykk(page.locator('#logMode button[data-m="ana"]'));
+  await expect(page.locator('#ana')).toBeVisible();
+  await expect.poll(() => skuffSynlig(page), { message: 'skuffen står åpen over analysen' }).toBe(false);
+  expect(feil).toEqual([]);
+});
+
+test('AK21: rypetreff-banneret er tekst med tydelige knapper, ingen tekst går over mer enn to linjer, og det dekker ingen ikoner', async ({ page, browserName }) => {
+  const v = ALLE.find(w => NETTLESER[navn(w)] === browserName && w[1] > w[0]);
+  await page.setViewportSize(vp(v));
+  const feil = await start(page); await lokal(page); await aapneTurDirekte(page);
+  await trykk(page.locator('#addPoiBtn'));
+  await expect(page.locator('#addHint')).toBeVisible();
+  const r = await page.evaluate(() => {
+    const M = window.__m, h = document.querySelector('#addHint'), hr = h.getBoundingClientRect(), tekst = document.querySelector('#addHintText');
+    const linjer = {};
+    for (const b of M.tekstbiter(['#addHint'])) { const k = b.n.textContent.trim(); (linjer[k] = linjer[k] || new Set()).add(Math.round(b.t)); }
+    const mange = Object.entries(linjer).filter(([, s]) => s.size > 2).map(([k, s]) => `«${k}»: ${s.size} linjer`);
+    const ikoner = [...document.querySelectorAll('#stage button, #stage .maplibregl-ctrl button, .top button')].filter(b => !h.contains(b) && M.synlig(b)).filter(b => { const q = b.getBoundingClientRect(); return q.left < hr.right && q.right > hr.left && q.top < hr.bottom && q.bottom > hr.top; }).map(M.navn);
+    const knapp = id => { const cs = getComputedStyle(document.querySelector(id)); return cs.borderStyle !== 'none' || cs.backgroundColor !== 'rgba(0, 0, 0, 0)'; };
+    const ts = getComputedStyle(tekst);
+    return { mange, ikoner, tekstSomKnapp: ts.backgroundColor !== 'rgba(0, 0, 0, 0)' || ts.borderStyle !== 'none' || getComputedStyle(h).backgroundColor === 'rgb(244, 177, 62)', knapper: [knapp('#useTimeline'), knapp('#cancelAdd')] };
+  });
+  expect(r.mange, 'tekst over mer enn to linjer').toEqual([]);
+  expect(r.ikoner, 'banneret dekker ikoner').toEqual([]);
+  expect(r.tekstSomKnapp, 'instruksjonen ser ut som en knapp').toBe(false);
+  expect(r.knapper, '«Bruk posisjonen på tidslinjen» og «Avbryt» ser ikke ut som knapper').toEqual([true, true]);
+  expect(feil).toEqual([]);
 });
