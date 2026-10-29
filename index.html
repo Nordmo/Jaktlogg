@@ -99,8 +99,8 @@ button{cursor:pointer}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:-1px;border:1.5px solid #0a0f15}
 .legend .ln{display:inline-block;width:18px;height:3px;border-radius:2px;background:var(--amber);margin-right:6px;vertical-align:3px}
 
-.hint{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:6;padding:8px 14px;border-radius:999px;background:var(--amber);color:var(--amber-ink);font-weight:600;font-size:14px;display:flex;gap:10px;align-items:center;box-shadow:0 6px 24px rgba(0,0,0,.4)}
-.hint button{border:0;background:rgba(0,0,0,.15);border-radius:999px;padding:2px 10px;font-weight:600}
+.hint{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:6;padding:8px 8px 8px 14px;border-radius:12px;background:var(--glass);border:1px solid var(--line-2);color:var(--text);font-size:14px;display:flex;gap:10px;align-items:center;box-shadow:0 6px 24px rgba(0,0,0,.4);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.hint .btn{white-space:normal;height:auto;min-height:34px;padding:6px 12px;line-height:1.25;text-align:center}
 .loading{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);z-index:6;padding:7px 14px;border-radius:999px;background:var(--glass);border:1px solid var(--line);font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center}
 .spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--line-2);border-top-color:var(--amber);animation:spin 1s linear infinite;display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -348,7 +348,6 @@ textarea.inp{min-height:76px;resize:vertical}
 .sumrow b{font-weight:600;font-size:15px}
 .sumrow:hover{border-color:var(--amber)}
 .btn.accent{border-color:var(--amber);color:var(--amber);background:rgba(244,177,62,.08)}
-.hint .sec{background:rgba(0,0,0,.18)}
 /* Analysis */
 .ana{position:absolute;inset:0;z-index:7;overflow:auto;background:var(--bg);padding-block:22px 48px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px))}
 .view-trip .ana{display:none!important}
@@ -358,8 +357,9 @@ textarea.inp{min-height:76px;resize:vertical}
 .ana-filters{display:flex;flex-wrap:wrap;gap:12px 22px;align-items:center;margin-bottom:16px}
 .ana-filters > div{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .ana-filters .lbl{font:500 11px/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
-.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:14px}
-.kpis > div{padding:12px 14px;background:var(--panel)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:14px}
+/* linjene mellom rutene tegnes inne i hver rute (venstre og topp, flyttet 1 px ut under kanten), så en tom plass i siste rad får samme farge som rutene */
+.kpis > div{padding:12px 14px;background:var(--panel);margin:-1px 0 0 -1px;box-shadow:inset 1px 0 0 var(--line),inset 0 1px 0 var(--line)}
 .kpis b{display:block;font:600 32px/1.05 var(--f-display);font-variant-numeric:tabular-nums;margin-top:6px}
 .kpis span{font:500 10px/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
 .kpis small{display:block;color:var(--muted);font-size:12px;margin-top:3px}
@@ -406,12 +406,13 @@ textarea.inp{min-height:76px;resize:vertical}
 @media (max-width:560px){.readout .ro:nth-child(n+3){display:none}.dur span{display:none}.two,.three{grid-template-columns:1fr}.crumbs .slash,.crumbs b{display:none}}
 /* Telefon (docs/specs/mobil.md). Smal: logoen fører til jaktloggen, og Presenter og Lag video ligger øverst i Tur-fanen. */
 .pane-acts{display:none;gap:8px;flex-wrap:wrap}
-@media (max-width:559.98px){.top{gap:6px}.sep,.crumbs,#presentBtn,#exportBtn,.view-log .brand{display:none!important}.pane-acts{display:flex}}
+@media (max-width:980px){.hint{left:80px;right:70px;transform:none;flex-wrap:wrap;justify-content:center}}
+@media (max-width:559.98px){.hint{flex-direction:column;align-items:stretch;text-align:center}.top{gap:6px}.sep,.crumbs,#presentBtn,#exportBtn,.view-log .brand{display:none!important}.pane-acts{display:flex}}
 /* Lav (liggende telefon): høydeprofilen skjules, så kartet får plass */
 @media (max-height:499px){.charts{display:none}.tl{gap:4px;padding-top:6px;padding-bottom:calc(6px + env(safe-area-inset-bottom,0px))}.rail{max-height:calc(100% - 28px);overflow-y:auto}
   .auth{padding:8px;overflow:auto}.auth form{padding:14px 18px;gap:8px}.auth h1{font-size:28px}.auth .field{grid-template-columns:80px minmax(0,1fr);align-items:center}}
 /* i skuffen står turene rett under overskriften, så de synes når jaktloggen åpnes */
-@media (max-width:980px){.fps{left:84px}#pane-log>*{order:1}#pane-log>:first-child{order:-3}#tripCount{order:-2}#pane-log>.trips{order:-1}}
+@media (max-width:980px){.ana-filters{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px 14px}.ana-filters > div{display:contents}.fps{left:84px}#pane-log>*{order:1}#pane-log>:first-child{order:-3}#tripCount{order:-2}#pane-log>.trips{order:-1}}
 /* Berøringsskjerm: trykkflater på minst 44×44 px, tekst minst 12 px, og felt på 16 px så iPhone ikke zoomer inn.
    Knappene er 44 px med en usynlig kant på 2 px rundt (::after), så også de runde hjørnene tar imot trykk. Naboene står
    derfor minst 4 px fra hverandre. Felt, brytere og kartknapper uten kant er 48 px. */
@@ -420,7 +421,7 @@ textarea.inp{min-height:76px;resize:vertical}
   .acct,.play,.iconbtn{width:44px;height:44px}
   .brand,.cam{min-width:44px;min-height:44px;justify-content:center}
   .seg button{min-width:50px;min-height:44px}
-  .linkbtn,.hint button,.chips button,.chips label{min-height:44px}
+  .linkbtn,.hint button,.hint .btn,.chips button,.chips label{min-height:44px}
   .tab{min-height:48px}
   .top .btn,.acct,.brand{flex:none}
   .btn,.acct,.play,.iconbtn,.brand,.seg button,.cam,.tab,.linkbtn,.hint button,.chips button{position:relative}
@@ -435,7 +436,7 @@ textarea.inp{min-height:76px;resize:vertical}
   .scrub>*,.scrub .tick{margin-top:9px}
   .maplibregl-ctrl-group button{width:48px;height:48px}
   .maplibregl-ctrl-attrib.maplibregl-compact{min-height:48px;padding-right:48px;border-radius:24px}
-  .maplibregl-ctrl-attrib-button{width:48px;height:48px;border-radius:0;background-position:center}
+  .maplibregl-ctrl-attrib-button{width:48px;height:48px;border-radius:0;background-position:center;background-repeat:no-repeat;background-size:24px 24px}
   .maplibregl-ctrl-attrib a{display:inline-block;min-height:44px;line-height:44px}
   .mapbar{right:64px}
   .eyebrow,.chip,.fact span,.stat span,.poi-row span,.badge,.trip .when,.wx span,.ro span,.scrub .lbls span,.field > span,.sumrow span,.ana-filters .lbl,.kpis span,.acard .foot,.poi-mk i,.cam kbd,.maplibregl-ctrl-attrib{font-size:12px}
@@ -474,7 +475,7 @@ textarea.inp{min-height:76px;resize:vertical}
       <div class="seg" role="group" aria-label="Visning"><button id="v2d">2D</button><button id="v3d" class="on">3D</button></div>
       <button class="iconbtn" id="fsBtn" aria-label="Fullskjerm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     </div>
-    <div class="hint" id="addHint" hidden><span id="addHintText">Trykk i kartet der rypene satt</span><button id="useTimeline" class="sec">Bruk posisjonen på tidslinjen</button><button id="cancelAdd">Avbryt</button></div>
+    <div class="hint" id="addHint" hidden><span id="addHintText">Trykk i kartet der rypene satt</span><button id="useTimeline" class="btn primary">Bruk posisjonen på tidslinjen</button><button id="cancelAdd" class="btn">Avbryt</button></div>
     <div class="loading" id="loading" hidden><i class="spin"></i><span id="loadingText">Laster</span></div>
     <div class="tip" id="tip" hidden></div>
     <article class="card" id="poiCard" hidden></article>
@@ -1469,11 +1470,17 @@ function updateReadout(){
   $('#readout').innerHTML=items.map(([k,val,hot])=>`<div class="ro${hot?' hot':''}"><span>${k}</span><b>${val}</b></div>`).join('');
 }
 function updateScrub(){const pc=(state.progress*100).toFixed(3)+'%';$('#scrubFill').style.width=pc;$('#scrubThumb').style.left=pc;$('#scrub').setAttribute('aria-valuenow',Math.round(state.progress*100));}
+/* etikettene under spolelinja: skjul de som ville ligget oppå naboen (smal skjerm). Første og siste står alltid. */
+function fitScrubLbls(){
+  const sp=$$('#scrubLbls span');sp.forEach(e=>e.hidden=false);if(sp.length<3)return;
+  const r=sp.map(e=>e.getBoundingClientRect()),gap=10,last=r.length-1;let prev=0;
+  for(let k=1;k<last;k++){if(r[k].left<r[prev].right+gap||r[k].right>r[last].left-gap)sp[k].hidden=true;else prev=k;}
+}
 function buildScrub(){
   const T=state.T;
   $('#scrubTicks').innerHTML=state.pois.filter(p=>p.d!=null).map(p=>`<i class="tick" style="left:${(p.d/T.total*100).toFixed(2)}%;--k:${isGame(p)?speciesColor(p):(KINDS[p.kind]||KINDS.note).color}" title="${esc(obsName(p))}"></i>`).join('');
   const lbl=[];for(let k=0;k<=4;k++){const d=k/4*T.total;let s=`${fmtKm(d)} km`;if(T.time)s+=` · ${fmtClock(sampleAt(T,T.time,d))}`;lbl.push(`<span style="left:${k*25}%">${s}</span>`);}
-  $('#scrubLbls').innerHTML=lbl.join('');
+  $('#scrubLbls').innerHTML=lbl.join('');fitScrubLbls();
 }
 function bindScrub(){
   const el=$('#scrub');let drag=false;const at=e=>{const r=el.getBoundingClientRect();setProgress((e.clientX-r.left)/r.width,true);};
@@ -2505,7 +2512,7 @@ async function enrichTrip(){
 
 /* ---------- analysis ---------- */
 function setLogMode(m){
-  state.anaOpen=m==='ana';$('#ana').hidden=!state.anaOpen;document.body.classList.toggle('ana-open',state.anaOpen);
+  state.anaOpen=m==='ana';$('#ana').hidden=!state.anaOpen;$('#side').classList.toggle('open',!state.anaOpen);document.body.classList.toggle('ana-open',state.anaOpen);
   $$('#logMode button').forEach(b=>b.classList.toggle('on',b.dataset.m===m));if(state.anaOpen)renderAnalysis();
 }
 function anaData(){
@@ -2797,6 +2804,7 @@ function bindUI(){
     else if(e.key==='f'||e.key==='F')$('#fsBtn').click();
   });
   new ResizeObserver(()=>renderChartBases()).observe($('#charts'));
+  new ResizeObserver(fitScrubLbls).observe($('#scrub'));
 }
 if(typeof maplibregl==='undefined'){document.body.innerHTML='<div style="padding:40px;font:16px system-ui;color:#e7edf2">Kartbiblioteket ble ikke lastet. Høydespor trenger internett for kart og terreng.</div>';}
 else{bindUI();initMap();}
